@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      // Check if the user has an 'admin' role in their profile.
+      // This requires a read to the user's document.
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+    function hasValidProfileDataOnCreate(userId) {
+      return request.resource.data.id == userId &&
+             request.resource.data.email == request.auth.token.email &&
+             request.resource.data.role == 'user';
+    }
+    function hasImmutableProfileFields() {
+      return request.resource.data.id == resource.data.id &&
+             request.resource.data.createdAt == resource.data.createdAt &&
+             request.resource.data.email == resource.data.email;
+    }
+    function ownerKeepsRoleAndGroups(userId) {
+      return isOwner(userId) &&
+             request.resource.data.role == resource.data.role &&
+             request.resource.data.grupo == resource.data.grupo;
+    }
+    function isInGroup(groupId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             groupId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo;
+    }
+
+    // ------------------------------------------------------------------------
+    // User Profile Collection
+    // ------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all user profiles.
+      allow create: if isOwner(userId) && hasValidProfileDataOnCreate(userId);
+      allow update: if resource != null && hasImmutableProfileFields() && (ownerKeepsRoleAndGroups(userId) || isAdmin());
+      allow delete: if isExistingOwner(userId) || isAdmin();
+    }
+    
+    // ------------------------------------------------------------------------
+    // User Images Subcollection
+    // ------------------------------------------------------------------------
+    match /users/{userId}/images/{imageId} {
+      // Explicitly allows a user to list and get their own documents.
+      // This separation avoids using `get()` in any rule on this path,
+      // which is critical for `list` queries to succeed.
+      allow list: if request.auth.uid == userId;
+      allow get: if request.auth.uid == userId;
+      
+      // Allow create only if the user is the owner.
+      allow create: if request.auth.uid == userId;
+                       
+      // UPDATE/DELETE rule disabled to prevent clients from making modifications.
+      // Admin operations should be done via a backend with the Admin SDK.
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------------------
+    // Group Shared Images Collection
+    // ------------------------------------------------------------------------
+    match /groups/{groupId}/images/{imageId} {
+      allow list, get: if isInGroup(groupId);
+      allow create: if isInGroup(groupId);
+      allow update, delete: if false;
+    }
+  }
+}

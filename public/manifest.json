@@ -1,0 +1,23 @@
+{
+    "name": "CF BIKE PONTAL",
+    "short_name": "CF BIKE PONTAL",
+    "description": "AI-powered bike route planning",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#181c24",
+    "theme_color": "#f9be00",
+    "icons": [
+        {
+            "src": "/cf-bike-pontal-logo.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/cf-bike-pontal-logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
