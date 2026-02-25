@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,8 +11,10 @@ import {
   useDoc,
   useMemoFirebase,
   setDocumentNonBlocking,
+  useAuth,
 } from '@/firebase';
 import { doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { updateEmail, reauthenticateWithCredential, EmailAuthProvider, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -38,6 +40,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 
 const profileFormSchema = z.object({
@@ -77,9 +87,16 @@ const motivacoes = [
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+
+  const [showReauthDialog, setShowReauthDialog] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [emailToChange, setEmailToChange] = useState('');
+  const [pendingFormValues, setPendingFormValues] = useState<ProfileFormValues | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -155,10 +172,73 @@ export default function ProfilePage() {
       form.reset(formData);
     }
   }, [userProfile, form]);
+
+  const handleReauthenticateAndUpdateEmail = async () => {
+    if (!user || !user.email || !reauthPassword) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Preencha a senha para confirmar.',
+      });
+      return;
+    }
+
+    setIsAuthenticating(true);
+
+    try {
+      const credential = EmailAuthProvider.credential(user.email, reauthPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      // Após re-autenticação bem-sucedida, envia verificação para o novo email
+      if (emailToChange) {
+        await verifyBeforeUpdateEmail(user, emailToChange);
+      }
+
+      // Agora salva o perfil com os dados pendentes
+      if (pendingFormValues && userDocRef) {
+        const dataToSave = {
+          ...pendingFormValues,
+          dataNascimento: pendingFormValues.dataNascimento || null,
+          updatedAt: serverTimestamp(),
+        };
+        await setDocumentNonBlocking(userDocRef, dataToSave, { merge: true });
+      }
+
+      setShowReauthDialog(false);
+      setReauthPassword('');
+      setEmailToChange('');
+      setPendingFormValues(null);
+
+      toast({
+        title: 'Verificação enviada!',
+        description: `Um link de confirmação foi enviado para ${emailToChange}. Clique nele para confirmar a mudança de email.`,
+      });
+
+      router.push('/');
+    } catch (error: any) {
+      console.error('Erro ao atualizar email:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro na atualização',
+        description: error.message || 'Senha incorreta ou erro ao atualizar email.',
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
   
   const onSubmit = async (values: ProfileFormValues) => {
-    if (!userDocRef) return;
-    
+    if (!userDocRef || !user) return;
+
+    // Se o email foi alterado, requer re-autenticação
+    if (values.email && values.email !== user.email) {
+      setEmailToChange(values.email);
+      setPendingFormValues(values);
+      setShowReauthDialog(true);
+      return;
+    }
+
+    // Sem mudança de email, salva normalmente
     const dataToSave = {
         ...values,
         dataNascimento: values.dataNascimento || null,
@@ -172,6 +252,8 @@ export default function ProfilePage() {
         title: 'Perfil atualizado!',
         description: 'Suas informações foram salvas com sucesso.',
       });
+      
+      router.push('/');
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -220,7 +302,7 @@ export default function ProfilePage() {
                 <FormItem className="md:col-span-2">
                   <FormLabel>E-mail</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled />
+                    <Input type="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -495,6 +577,45 @@ export default function ProfilePage() {
             </div>
           </form>
         </Form>
+
+        <Dialog open={showReauthDialog} onOpenChange={setShowReauthDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirme sua Senha</DialogTitle>
+              <DialogDescription>
+                Por segurança, digite sua senha. Um link de confirmação será enviado para <strong>{emailToChange}</strong> para validar a mudança.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Sua senha"
+                value={reauthPassword}
+                onChange={(e) => setReauthPassword(e.target.value)}
+                disabled={isAuthenticating}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowReauthDialog(false);
+                  setReauthPassword('');
+                }}
+                disabled={isAuthenticating}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleReauthenticateAndUpdateEmail}
+                disabled={isAuthenticating}
+              >
+                {isAuthenticating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </>
   );

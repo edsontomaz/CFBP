@@ -9,10 +9,11 @@ import {
   useUser,
   useFirestore,
   useDoc,
+  useCollection,
   useMemoFirebase,
   setDocumentNonBlocking,
 } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -37,7 +38,10 @@ const editProfileFormSchema = z.object({
 
 type EditProfileFormValues = z.infer<typeof editProfileFormSchema>;
 
-const defaultGroups = ['CF 2026', 'Pebas 2026'];
+interface Group {
+  id: string;
+  name: string;
+}
 
 export default function AdminEditUserPage() {
   const { user: adminUser, isUserLoading: isAdminLoading } = useUser();
@@ -47,9 +51,7 @@ export default function AdminEditUserPage() {
   const params = useParams();
   const userId = params.userId as string;
 
-  // State for group management
-  const [availableGroups, setAvailableGroups] = useState(defaultGroups);
-  const [newGroupName, setNewGroupName] = useState('');
+  // State for group management (removed - groups now come from Firestore)
 
   // Verify if the logged-in user is an admin
   const adminDocRef = useMemoFirebase(() => (adminUser ? doc(firestore, 'users', adminUser.uid) : null), [firestore, adminUser]);
@@ -58,6 +60,15 @@ export default function AdminEditUserPage() {
   // Fetch the profile of the user being edited
   const userDocRef = useMemoFirebase(() => doc(firestore, 'users', userId), [firestore, userId]);
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<EditProfileFormValues>(userDocRef);
+
+  // Fetch all groups from Firestore
+  const groupsQuery = useMemoFirebase(() => {
+    if (adminProfile && adminProfile.role === 'admin') {
+      return collection(firestore, 'groups');
+    }
+    return null;
+  }, [firestore, adminProfile]);
+  const { data: groups, isLoading: areGroupsLoading } = useCollection<Group>(groupsQuery);
 
   const form = useForm<EditProfileFormValues>({
     resolver: zodResolver(editProfileFormSchema),
@@ -81,22 +92,11 @@ export default function AdminEditUserPage() {
   // Populate form with user data
   useEffect(() => {
     if (userProfile) {
-      // Combine default groups with user's current groups
-      const allGroups = new Set([...defaultGroups, ...(userProfile.grupo || [])]);
-      setAvailableGroups(Array.from(allGroups));
       form.reset(userProfile);
     }
   }, [userProfile, form]);
   
-  const handleAddNewGroup = () => {
-    const trimmedName = newGroupName.trim();
-    if (trimmedName && !availableGroups.includes(trimmedName)) {
-        setAvailableGroups(prev => [...prev, trimmedName]);
-        const currentGroups = form.getValues('grupo') || [];
-        form.setValue('grupo', [...currentGroups, trimmedName], { shouldDirty: true });
-        setNewGroupName('');
-    }
-  };
+
 
   const onSubmit = async (values: EditProfileFormValues) => {
     if (!userDocRef) return;
@@ -126,7 +126,7 @@ export default function AdminEditUserPage() {
     }
   };
   
-  const isLoading = isAdminLoading || isAdminProfileLoading || isProfileLoading;
+  const isLoading = isAdminLoading || isAdminProfileLoading || isProfileLoading || areGroupsLoading;
 
   if (isLoading || !adminProfile || adminProfile.role !== 'admin' || !userProfile) {
     return (
@@ -144,7 +144,7 @@ export default function AdminEditUserPage() {
             <Link href="/admin">Voltar para o Painel</Link>
         </Button>
         <h1 className="mb-2 text-3xl font-bold font-headline">Editar Usuário</h1>
-        <p className="text-muted-foreground mb-8">Modifique os grupos para {userProfile?.displayName || 'o usuário'}.</p>
+        <p className="text-muted-foreground mb-8">Selecione os grupos que {userProfile?.displayName || 'o usuário'} pode acessar.</p>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -181,45 +181,44 @@ export default function AdminEditUserPage() {
               name="grupo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-base">Grupos</FormLabel>
-                   <div className="space-y-2 rounded-md border p-4">
-                    {availableGroups.map((groupName) => (
-                        <FormItem key={groupName} className="flex flex-row items-center space-x-3 space-y-0">
-                            <FormControl>
-                                <Checkbox
-                                    checked={field.value?.includes(groupName)}
-                                    onCheckedChange={(checked) => {
-                                        const currentValue = field.value || [];
-                                        if (checked) {
-                                            field.onChange([...currentValue, groupName]);
-                                        } else {
-                                            field.onChange(currentValue.filter((id) => id !== groupName));
-                                        }
-                                    }}
-                                />
-                            </FormControl>
-                            <FormLabel className="font-normal">{groupName}</FormLabel>
-                        </FormItem>
-                    ))}
-                  </div>
-                  <FormMessage />
-                  <div className="flex items-center gap-2 pt-2">
-                    <Input
-                        value={newGroupName}
-                        onChange={(e) => setNewGroupName(e.target.value)}
-                        placeholder="Criar novo grupo"
-                        className="h-9"
-                    />
+                  <div className="flex items-center justify-between">
+                    <FormLabel className="text-base">Grupos</FormLabel>
                     <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddNewGroup}
-                        disabled={!newGroupName.trim() || availableGroups.includes(newGroupName.trim())}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      asChild
                     >
-                        Adicionar
+                      <Link href="/admin/groups">Gerenciar Grupos</Link>
                     </Button>
                   </div>
+                  {groups && groups.length > 0 ? (
+                    <div className="space-y-2 rounded-md border p-4">
+                      {groups.map((group) => (
+                        <FormItem key={group.id} className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(group.name)}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, group.name]);
+                                } else {
+                                  field.onChange(currentValue.filter((name) => name !== group.name));
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">{group.name}</FormLabel>
+                        </FormItem>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
+                      Nenhum grupo disponível. <Link href="/admin/groups" className="underline">Criar grupos</Link>
+                    </div>
+                  )}
+                  <FormMessage />
                 </FormItem>
               )}
             />

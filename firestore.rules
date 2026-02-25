@@ -27,8 +27,7 @@ service cloud.firestore {
     }
     function hasImmutableProfileFields() {
       return request.resource.data.id == resource.data.id &&
-             request.resource.data.createdAt == resource.data.createdAt &&
-             request.resource.data.email == resource.data.email;
+             request.resource.data.createdAt == resource.data.createdAt;
     }
     function ownerKeepsRoleAndGroups(userId) {
       return isOwner(userId) &&
@@ -38,7 +37,16 @@ service cloud.firestore {
     function isInGroup(groupId) {
       return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             groupId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo;
+             (
+               (
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo is list &&
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo.hasAny([groupId])
+               ) ||
+               (
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo is string &&
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.grupo == groupId
+               )
+             );
     }
 
     // ------------------------------------------------------------------------
@@ -71,12 +79,24 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------------
+    // Groups Collection (for group management)
+    // ------------------------------------------------------------------------
+    match /groups/{groupId} {
+      // Allow all authenticated users to read groups
+      allow list, get: if isSignedIn();
+      // Only admins can create, update, or delete groups
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------------
     // Group Shared Images Collection
     // ------------------------------------------------------------------------
     match /groups/{groupId}/images/{imageId} {
-      allow list, get: if isInGroup(groupId);
-      allow create: if isInGroup(groupId);
-      allow update, delete: if false;
+      allow list, get: if isInGroup(groupId) || isAdmin();
+      allow create: if isInGroup(groupId) || isAdmin();
+      allow delete: if (isInGroup(groupId) || isAdmin()) && 
+                       resource.data.uploaderUid == request.auth.uid;
+      allow update: if false;
     }
   }
 }

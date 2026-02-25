@@ -1,0 +1,45 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath() {
+      return /databases/(default)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && firestore.exists(userDocPath());
+    }
+
+    function isAdmin() {
+      return hasUserDoc() && firestore.get(userDocPath()).data.role == 'admin';
+    }
+
+    function isInGroup(groupId) {
+      return hasUserDoc() && (
+        (
+          firestore.get(userDocPath()).data.grupo is list &&
+          firestore.get(userDocPath()).data.grupo.hasAny([groupId])
+        ) ||
+        (
+          firestore.get(userDocPath()).data.grupo is string &&
+          firestore.get(userDocPath()).data.grupo == groupId
+        )
+      );
+    }
+
+    // Arquivos gravados em: {groupId}/{arquivo}
+    match /{groupId}/{allPaths=**} {
+      // Leitura pública (necessário para exibir no navegador via URL)
+      allow read: if true;
+
+      // Upload permitido para usuários do grupo
+      allow create, update: if isSignedIn() && (isInGroup(groupId) || isAdmin());
+
+      // Apenas admin pode deletar imagens
+      allow delete: if isAdmin();
+    }
+  }
+}

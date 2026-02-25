@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FolderPlus } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -60,6 +60,15 @@ export default function AdminDashboardPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-1 container mx-auto p-4 md:p-8">
+        <div className="mb-4">
+          <Button asChild>
+            <Link href="/admin/groups">
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Gerenciar Grupos
+            </Link>
+          </Button>
+        </div>
+        
         <Card>
           <CardHeader>
             <CardTitle className="font-headline text-2xl">Painel do Administrador</CardTitle>
