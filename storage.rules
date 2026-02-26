@@ -30,13 +30,32 @@ service firebase.storage {
       );
     }
 
+    function groupCanUpload(groupId) {
+      return !firestore.exists(/databases/(default)/documents/groups/$(groupId)) ||
+        firestore.get(/databases/(default)/documents/groups/$(groupId)).data.canUpload != false;
+    }
+
+    function userCanUploadToGroup(groupId) {
+      return hasUserDoc() && (
+        !('uploadGroups' in firestore.get(userDocPath()).data) ||
+        (
+          firestore.get(userDocPath()).data.uploadGroups is list &&
+          firestore.get(userDocPath()).data.uploadGroups.hasAny([groupId])
+        ) ||
+        (
+          firestore.get(userDocPath()).data.uploadGroups is string &&
+          firestore.get(userDocPath()).data.uploadGroups == groupId
+        )
+      );
+    }
+
     // Arquivos gravados em: {groupId}/{arquivo}
     match /{groupId}/{allPaths=**} {
       // Leitura pública (necessário para exibir no navegador via URL)
       allow read: if true;
 
       // Upload permitido para usuários do grupo
-      allow create, update: if isSignedIn() && (isInGroup(groupId) || isAdmin());
+      allow create, update: if isSignedIn() && (isAdmin() || (isInGroup(groupId) && groupCanUpload(groupId) && userCanUploadToGroup(groupId)));
 
       // Apenas admin pode deletar imagens
       allow delete: if isAdmin();

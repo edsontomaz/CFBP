@@ -6,7 +6,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useStora
 import { collection, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, listAll, getMetadata, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Header } from '@/components/header';
-import { Loader2, X, UploadCloud, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Loader2, X, UploadCloud, Image as ImageIcon, Trash2, Download } from 'lucide-react';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,14 @@ interface ImageDoc {
 
 interface UserProfile {
   grupo?: string[];
+  uploadGroups?: string[];
   role?: string;
+}
+
+interface GroupData {
+  id: string;
+  name: string;
+  canUpload?: boolean;
 }
 
 export default function GalleryPage() {
@@ -63,7 +70,7 @@ export default function GalleryPage() {
 
   // Buscar grupos válidos da coleção groups
   const groupsQuery = useMemoFirebase(() => collection(firestore, 'groups'), [firestore]);
-  const { data: availableGroups } = useCollection<{ id: string; name: string }>(groupsQuery);
+  const { data: availableGroups } = useCollection<GroupData>(groupsQuery);
 
   const [activeGroup, setActiveGroup] = useState<string | undefined>(undefined);
   const [validUserGroups, setValidUserGroups] = useState<string[]>([]);
@@ -201,6 +208,11 @@ export default function GalleryPage() {
 
   const hasGroups = validUserGroups.length > 0;
   const targetGroup = activeGroup || (hasGroups ? validUserGroups[0] : undefined);
+  const activeGroupData = availableGroups?.find((group) => group.name === targetGroup);
+  const userCanUploadToActiveGroup = targetGroup
+    ? (userProfile?.uploadGroups?.includes(targetGroup) ?? validUserGroups.includes(targetGroup))
+    : false;
+  const canUploadToActiveGroup = (activeGroupData?.canUpload !== false) && userCanUploadToActiveGroup;
 
   const handleUpload = async () => {
     if (isUserLoading || !user || files.length === 0 || !targetGroup) {
@@ -208,6 +220,15 @@ export default function GalleryPage() {
         variant: 'destructive',
         title: 'Não foi possível enviar',
         description: 'Você precisa estar logado e pertencer a um grupo para poder enviar arquivos.',
+      });
+      return;
+    }
+
+    if (!canUploadToActiveGroup) {
+      toast({
+        variant: 'destructive',
+        title: 'Envio bloqueado para este grupo',
+        description: `O envio está desativado para você neste grupo.`,
       });
       return;
     }
@@ -367,6 +388,26 @@ export default function GalleryPage() {
     }
   };
 
+  const handleDownloadMedia = async (image: ImageDoc) => {
+    try {
+      const link = document.createElement('a');
+      link.href = `/api/media-download?url=${encodeURIComponent(image.url)}&name=${encodeURIComponent(image.name)}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({
+        title: 'Download iniciado',
+        description: `Baixando ${image.name}`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha no download',
+        description: 'Não foi possível iniciar o download.',
+      });
+    }
+  };
+
   const handleImageError = async (imageId: string, imageName: string) => {
     // Sem Firestore ativo, apenas registra o erro de carregamento
     console.log('Erro ao carregar mídia do Storage:', imageId, imageName);
@@ -387,7 +428,7 @@ export default function GalleryPage() {
       <main className="flex-1 container mx-auto p-4 md:p-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold font-headline">Sua Galeria de Mídia</h1>
-          <Button onClick={() => fileInputRef.current?.click()} disabled={!hasGroups || isUploading}>
+          <Button onClick={() => fileInputRef.current?.click()} disabled={!hasGroups || isUploading || !canUploadToActiveGroup}>
             <UploadCloud className="mr-2 h-4 w-4" />
             Enviar Mídia
           </Button>
@@ -439,25 +480,35 @@ export default function GalleryPage() {
                                 onError={() => handleImageError(image.id, image.name)}
                               />
                             )}
-                            {isAdmin && (
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <div className="flex gap-2">
                                 <Button
-                                  variant="destructive"
+                                  variant="secondary"
                                   size="sm"
-                                  onClick={() => handleDeleteImage(image)}
-                                  disabled={isDeletingImage === image.id}
+                                  onClick={() => handleDownloadMedia(image)}
                                 >
-                                  {isDeletingImage === image.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Deletar
-                                    </>
-                                  )}
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
                                 </Button>
+                                {isAdmin && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteImage(image)}
+                                    disabled={isDeletingImage === image.id}
+                                  >
+                                    {isDeletingImage === image.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Deletar
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -469,10 +520,13 @@ export default function GalleryPage() {
                   <div className="text-center py-16 border-2 border-dashed rounded-lg">
                     <h2 className="text-xl font-semibold">Nenhuma mídia neste grupo</h2>
                     <p className="text-muted-foreground mt-2">Seja o primeiro a enviar uma imagem ou vídeo para o grupo '{activeGroup}'.</p>
-                    <Button onClick={() => fileInputRef.current?.click()} className="mt-4">
+                    <Button onClick={() => fileInputRef.current?.click()} className="mt-4" disabled={!canUploadToActiveGroup}>
                       <UploadCloud className="mr-2 h-4 w-4" />
                       Enviar Mídia
                     </Button>
+                    {!canUploadToActiveGroup && (
+                      <p className="text-sm text-muted-foreground mt-2">Envio desativado para este grupo (flag do grupo ou do usuário).</p>
+                    )}
                   </div>
                 )}
               </TabsContent>

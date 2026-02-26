@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Loader2, Trash2, FolderPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import {
   AlertDialog,
@@ -25,6 +26,7 @@ import {
 interface Group {
   id: string;
   name: string;
+  canUpload?: boolean;
   createdAt?: any;
 }
 
@@ -86,6 +88,7 @@ export default function AdminGroupsPage() {
       const groupRef = doc(firestore, 'groups', trimmedName);
       await setDocumentNonBlocking(groupRef, {
         name: trimmedName,
+        canUpload: true,
         createdAt: serverTimestamp(),
       }, {});
 
@@ -109,6 +112,30 @@ export default function AdminGroupsPage() {
   const handleDeleteClick = (group: Group) => {
     setGroupToDelete(group);
     setDeleteDialogOpen(true);
+  };
+
+  const handleToggleUploadPermission = async (group: Group, checked: boolean | 'indeterminate') => {
+    const canUpload = checked === true;
+
+    try {
+      const groupRef = doc(firestore, 'groups', group.id);
+      await setDocumentNonBlocking(groupRef, {
+        canUpload,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      toast({
+        title: canUpload ? 'Envio permitido' : 'Envio bloqueado',
+        description: `Grupo "${group.name}" ${canUpload ? 'pode enviar mídias' : 'somente leitura de mídias'}.`,
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar permissão de envio do grupo:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível atualizar a permissão de envio do grupo.',
+      });
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -223,7 +250,19 @@ export default function AdminGroupsPage() {
                             {group.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="font-medium">{group.name}</span>
+                        <div>
+                          <span className="font-medium">{group.name}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Checkbox
+                              id={`can-upload-${group.id}`}
+                              checked={group.canUpload !== false}
+                              onCheckedChange={(checked) => handleToggleUploadPermission(group, checked)}
+                            />
+                            <label htmlFor={`can-upload-${group.id}`} className="text-sm text-muted-foreground cursor-pointer">
+                              Permitir envio de mídias
+                            </label>
+                          </div>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"

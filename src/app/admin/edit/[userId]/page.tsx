@@ -7,13 +7,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
   useUser,
+  useAuth,
   useFirestore,
   useDoc,
   useCollection,
   useMemoFirebase,
   setDocumentNonBlocking,
+  deleteDocumentNonBlocking,
 } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, getDocFromServer } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -34,6 +36,7 @@ const editProfileFormSchema = z.object({
   displayName: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
   email: z.string().email(),
   grupo: z.array(z.string()).default([]).optional(),
+  uploadGroups: z.array(z.string()).default([]).optional(),
 });
 
 type EditProfileFormValues = z.infer<typeof editProfileFormSchema>;
@@ -45,11 +48,14 @@ interface Group {
 
 export default function AdminEditUserPage() {
   const { user: adminUser, isUserLoading: isAdminLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const params = useParams();
   const userId = params.userId as string;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const shouldDeleteAuthViaApi = process.env.NEXT_PUBLIC_ENABLE_AUTH_DELETE !== 'false';
 
   // State for group management (removed - groups now come from Firestore)
 
@@ -76,6 +82,7 @@ export default function AdminEditUserPage() {
       displayName: '',
       email: '',
       grupo: [],
+      uploadGroups: [],
     },
   });
 
@@ -92,7 +99,13 @@ export default function AdminEditUserPage() {
   // Populate form with user data
   useEffect(() => {
     if (userProfile) {
-      form.reset(userProfile);
+      const selectedGroups = userProfile.grupo || [];
+      const selectedUploadGroups = userProfile.uploadGroups || selectedGroups;
+      form.reset({
+        ...userProfile,
+        grupo: selectedGroups,
+        uploadGroups: selectedUploadGroups,
+      });
     }
   }, [userProfile, form]);
   
@@ -105,6 +118,7 @@ export default function AdminEditUserPage() {
     const dataToSave = {
         displayName: values.displayName,
         grupo: values.grupo || [],
+      uploadGroups: values.uploadGroups || [],
         updatedAt: serverTimestamp(),
     };
 
@@ -123,6 +137,76 @@ export default function AdminEditUserPage() {
         title: 'Erro',
         description: 'Não foi possível salvar as informações do usuário.',
       });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userDocRef) return;
+
+    if (adminUser?.uid === userId) {
+      toast({
+        variant: 'destructive',
+        title: 'Ação não permitida',
+        description: 'Você não pode excluir o seu próprio usuário por esta tela.',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o usuário ${userProfile?.displayName || ''}? Esta ação não pode ser desfeita.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeleting(true);
+
+      let deletedSnapshot = await getDocFromServer(userDocRef);
+      if (deletedSnapshot.exists()) {
+        await deleteDocumentNonBlocking(userDocRef);
+        deletedSnapshot = await getDocFromServer(userDocRef);
+      }
+
+      if (deletedSnapshot.exists()) {
+        throw new Error('Falha ao excluir no Firestore');
+      }
+
+      const currentAuthUser = auth.currentUser;
+      if (shouldDeleteAuthViaApi && currentAuthUser) {
+        const idToken = await currentAuthUser.getIdToken(true);
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          const responseBody = await response.json().catch(() => null);
+          toast({
+            title: 'Usuário excluído do banco!',
+            description:
+              responseBody?.error ||
+              'O perfil foi removido no Firestore. A remoção no Authentication não foi concluída.',
+          });
+          router.push('/admin');
+          return;
+        }
+      }
+
+      toast({
+        title: 'Usuário excluído!',
+        description: `${userProfile?.displayName || 'Usuário'} foi removido do banco de dados.`,
+      });
+      router.push('/admin');
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir',
+        description: 'Não foi possível excluir o usuário no banco de dados.',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
   
@@ -175,6 +259,13 @@ export default function AdminEditUserPage() {
                 </FormItem>
               )}
             />
+
+            <FormItem>
+              <FormLabel>UID</FormLabel>
+              <FormControl>
+                <Input value={userId} disabled readOnly />
+              </FormControl>
+            </FormItem>
             
             <FormField
               control={form.control}
@@ -195,22 +286,61 @@ export default function AdminEditUserPage() {
                   {groups && groups.length > 0 ? (
                     <div className="space-y-2 rounded-md border p-4">
                       {groups.map((group) => (
-                        <FormItem key={group.id} className="flex flex-row items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(group.name)}
-                              onCheckedChange={(checked) => {
-                                const currentValue = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValue, group.name]);
-                                } else {
-                                  field.onChange(currentValue.filter((name) => name !== group.name));
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">{group.name}</FormLabel>
-                        </FormItem>
+                        <div key={group.id} className="rounded-md border p-3 space-y-3">
+                          <p className="font-medium">{group.name}</p>
+
+                          <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(group.name)}
+                                onCheckedChange={(checked) => {
+                                  const currentGroups = field.value || [];
+                                  const currentUploadGroups = form.getValues('uploadGroups') || [];
+
+                                  if (checked) {
+                                    field.onChange([...currentGroups, group.name]);
+                                  } else {
+                                    field.onChange(currentGroups.filter((name) => name !== group.name));
+                                    form.setValue(
+                                      'uploadGroups',
+                                      currentUploadGroups.filter((name) => name !== group.name),
+                                      { shouldValidate: true }
+                                    );
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">(Acesso/Leitura)</FormLabel>
+                          </FormItem>
+
+                          <FormField
+                            control={form.control}
+                            name="uploadGroups"
+                            render={({ field: uploadField }) => (
+                              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={uploadField.value?.includes(group.name)}
+                                    onCheckedChange={(checked) => {
+                                      const currentUploadGroups = uploadField.value || [];
+                                      const currentGroups = form.getValues('grupo') || [];
+
+                                      if (checked) {
+                                        if (!currentGroups.includes(group.name)) {
+                                          form.setValue('grupo', [...currentGroups, group.name], { shouldValidate: true });
+                                        }
+                                        uploadField.onChange([...currentUploadGroups, group.name]);
+                                      } else {
+                                        uploadField.onChange(currentUploadGroups.filter((name) => name !== group.name));
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer">(GRAVAÇÃO)</FormLabel>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -223,10 +353,19 @@ export default function AdminEditUserPage() {
               )}
             />
 
-            <div>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={form.formState.isSubmitting || isDeleting}>
                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar Alterações
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDeleteUser}
+                disabled={isDeleting || form.formState.isSubmitting || adminUser?.uid === userId}
+              >
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Excluir Usuário
               </Button>
             </div>
           </form>
