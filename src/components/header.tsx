@@ -140,11 +140,8 @@ export function Header() {
                   <span>Perfil</span>
                 </Link>
               </DropdownMenuItem>
-              {!isInstalled && (
-                <DropdownMenuItem
-                  onClick={handleInstallApp}
-                  disabled={!installPrompt}
-                >
+              {!isInstalled && installPrompt && (
+                <DropdownMenuItem onClick={handleInstallApp}>
                   <Download className="mr-2 h-4 w-4" />
                   <span>Instalar app</span>
                 </DropdownMenuItem>
