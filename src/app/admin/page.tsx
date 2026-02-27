@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FolderPlus } from "lucide-react";
+import { Loader2, FolderPlus, ArrowLeft } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -89,7 +89,13 @@ export default function AdminDashboardPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-1 container mx-auto p-4 md:p-8">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar
+            </Link>
+          </Button>
           <Button asChild>
             <Link href="/admin/groups">
               <FolderPlus className="mr-2 h-4 w-4" />

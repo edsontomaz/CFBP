@@ -3,15 +3,34 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Images, User } from 'lucide-react';
+import { Loader2, Images, User, Download, Shield } from 'lucide-react';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser } from '@/firebase';
+import {
+  useUser,
+  useDoc,
+  useMemoFirebase,
+  useFirestore,
+} from '@/firebase';
+import { doc } from 'firebase/firestore';
+
+interface UserProfile {
+  role?: string;
+}
 
 export default function HomePage() {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user],
+  );
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -19,7 +38,7 @@ export default function HomePage() {
     }
   }, [isUserLoading, user, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isProfileLoading || !user) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -38,13 +57,41 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Admin</CardTitle>
+                  <CardDescription>Acesse o painel administrativo do sistema.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/admin">Abrir Admin</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Exportar Usuários</CardTitle>
+                  <CardDescription>Abra a página de exportação por grupo.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/export">Abrir Exportação</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
                 <CardDescription>Veja e envie mídias para os grupos aos quais você pertence.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button asChild>
+                <Button asChild variant="outline">
                   <Link href="/gallery">Abrir Galeria</Link>
                 </Button>
               </CardContent>

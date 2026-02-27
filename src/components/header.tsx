@@ -13,16 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  useUser,
-  useAuth,
-  useFirestore,
-  useDoc,
-  useMemoFirebase,
-} from "@/firebase";
-import { Download, LogOut, User as UserIcon, Shield } from "lucide-react";
+import { useUser, useAuth } from "@/firebase";
+import { Download, LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
-import { doc } from "firebase/firestore";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -32,16 +25,9 @@ interface BeforeInstallPromptEvent extends Event {
 export function Header() {
   const { user } = useUser();
   const auth = useAuth();
-  const firestore = useFirestore();
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [firestore, user],
-  );
-  const { data: userProfile } = useDoc<{ role: string }>(userDocRef);
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "U";
@@ -129,20 +115,6 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {userProfile && userProfile.role === "admin" && (
-                <DropdownMenuItem asChild>
-                  <Link href="/admin">
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>Admin</span>
-                  </Link>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                  <UserIcon className="mr-2 h-4 w-4" />
-                  <span>Perfil</span>
-                </Link>
-              </DropdownMenuItem>
               {!isInstalled && installPrompt && (
                 <DropdownMenuItem onClick={handleInstallApp}>
                   <Download className="mr-2 h-4 w-4" />
