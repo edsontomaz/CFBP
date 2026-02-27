@@ -6,7 +6,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useStora
 import { collection, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, listAll, getMetadata, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Header } from '@/components/header';
-import { Loader2, X, UploadCloud, Image as ImageIcon, Trash2, Download } from 'lucide-react';
+import { Loader2, X, UploadCloud, Image as ImageIcon, Trash2, Download, ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -341,6 +341,14 @@ export default function GalleryPage() {
   const isLoading = isUserLoading || isProfileLoading;
   const isAdmin = userProfile?.role === 'admin';
 
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  };
+
   const handleDeleteImage = async (image: ImageDoc) => {
     if (!activeGroup) {
       toast({
@@ -426,6 +434,12 @@ export default function GalleryPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-1 container mx-auto p-4 md:p-8">
+        <div className="mb-4">
+          <Button variant="outline" onClick={handleGoBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+        </div>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold font-headline">Sua Galeria de Mídia</h1>
           <Button onClick={() => fileInputRef.current?.click()} disabled={!hasGroups || isUploading || !canUploadToActiveGroup}>

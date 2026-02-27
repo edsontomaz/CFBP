@@ -25,8 +25,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { Loader2 } from 'lucide-react';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { LogoAuth } from '@/components/logo-auth';
 
 const formSchema = z.object({
@@ -36,6 +36,9 @@ const formSchema = z.object({
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRecoverPassword, setShowRecoverPassword] = useState(false);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -59,11 +62,13 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
+      setShowRecoverPassword(false);
       // The useEffect will handle redirection
     } catch (error: any) {
       let description = 'Ocorreu um erro. Tente novamente.';
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         description = 'Email ou senha inválidos.';
+        setShowRecoverPassword(true);
       }
       toast({
         variant: 'destructive',
@@ -72,6 +77,40 @@ export default function LoginPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleRecoverPassword() {
+    const email = form.getValues('email')?.trim();
+
+    if (!email) {
+      toast({
+        variant: 'destructive',
+        title: 'Informe seu e-mail',
+        description: 'Digite o e-mail para receber o link de recuperação de senha.',
+      });
+      return;
+    }
+
+    setIsRecoveringPassword(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: 'E-mail enviado',
+        description: 'Enviamos um link para você redefinir sua senha.',
+      });
+    } catch (error: any) {
+      let description = 'Não foi possível enviar o e-mail de recuperação.';
+      if (error.code === 'auth/invalid-email') {
+        description = 'O e-mail informado é inválido.';
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Erro na recuperação',
+        description,
+      });
+    } finally {
+      setIsRecoveringPassword(false);
     }
   }
 
@@ -118,7 +157,17 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Senha</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="********" {...field} />
+                      <div className="relative">
+                        <Input type={showPassword ? 'text' : 'password'} placeholder="********" {...field} className="pr-10" />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground"
+                          aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -128,6 +177,12 @@ export default function LoginPage() {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Entrar
               </Button>
+              {showRecoverPassword && (
+                <Button type="button" variant="outline" className="w-full" onClick={handleRecoverPassword} disabled={isRecoveringPassword}>
+                  {isRecoveringPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Recuperar senha
+                </Button>
+              )}
             </form>
           </Form>
           <div className="mt-4 text-center text-sm">

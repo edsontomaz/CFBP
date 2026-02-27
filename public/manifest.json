@@ -8,15 +8,15 @@
     "theme_color": "#f9be00",
     "icons": [
         {
-            "src": "/cf-bike-pontal-logo.png",
+            "src": "/BP_CF_1.ico",
             "sizes": "192x192",
-            "type": "image/png",
+            "type": "image/x-icon",
             "purpose": "any maskable"
         },
         {
-            "src": "/cf-bike-pontal-logo.png",
+            "src": "/BP_CF_1.ico",
             "sizes": "512x512",
-            "type": "image/png",
+            "type": "image/x-icon",
             "purpose": "any maskable"
         }
     ]

@@ -1,5 +1,6 @@
 'use client'; // This component now uses hooks
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { LogoHeader } from '@/components/logo-header';
 import { Button } from '@/components/ui/button';
@@ -19,14 +20,21 @@ import {
   useDoc,
   useMemoFirebase,
 } from '@/firebase';
-import { LogOut, User as UserIcon, Shield } from 'lucide-react';
+import { Download, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
 
 export function Header() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -46,6 +54,39 @@ export function Header() {
   const handleSignOut = async () => {
     await signOut(auth);
   };
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches;
+    setIsInstalled(standalone);
+
+    const beforeInstallHandler = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const appInstalledHandler = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', beforeInstallHandler);
+    window.addEventListener('appinstalled', appInstalledHandler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', beforeInstallHandler);
+      window.removeEventListener('appinstalled', appInstalledHandler);
+    };
+  }, []);
 
   return (
     <header className="border-b py-4 px-4 md:px-8">
@@ -99,6 +140,15 @@ export function Header() {
                   <span>Perfil</span>
                 </Link>
               </DropdownMenuItem>
+              {!isInstalled && (
+                <DropdownMenuItem
+                  onClick={handleInstallApp}
+                  disabled={!installPrompt}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  <span>Instalar app</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />

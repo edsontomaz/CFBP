@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -34,7 +35,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Header } from '@/components/header';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +61,8 @@ const profileFormSchema = z.object({
   estado: z.string().optional(),
   telefone: z.string().optional(),
   nacionalidade: z.string().optional(),
+  tipoSanguineo: z.string().optional(),
+  alergias: z.string().optional(),
   cpf: z.string().optional(),
   rg: z.string().optional(),
   dataNascimento: z.string().optional(),
@@ -94,6 +97,7 @@ export default function ProfilePage() {
 
   const [showReauthDialog, setShowReauthDialog] = useState(false);
   const [reauthPassword, setReauthPassword] = useState('');
+  const [showReauthPassword, setShowReauthPassword] = useState(false);
   const [emailToChange, setEmailToChange] = useState('');
   const [pendingFormValues, setPendingFormValues] = useState<ProfileFormValues | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -116,6 +120,8 @@ export default function ProfilePage() {
       estado: '',
       telefone: '',
       nacionalidade: '',
+      tipoSanguineo: '',
+      alergias: '',
       cpf: '',
       rg: '',
       dataNascimento: '',
@@ -160,6 +166,8 @@ export default function ProfilePage() {
         estado: userProfile.estado || '',
         telefone: userProfile.telefone || '',
         nacionalidade: userProfile.nacionalidade || '',
+        tipoSanguineo: userProfile.tipoSanguineo || '',
+        alergias: userProfile.alergias || '',
         cpf: userProfile.cpf || '',
         rg: userProfile.rg || '',
         dataNascimento: getSafeDateString(userProfile.dataNascimento),
@@ -471,6 +479,54 @@ export default function ProfilePage() {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="tipoSanguineo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo sanguíneo</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="NÃO SEI">NÃO SEI</SelectItem>
+                      <SelectItem value="A+">A+</SelectItem>
+                      <SelectItem value="A-">A-</SelectItem>
+                      <SelectItem value="B+">B+</SelectItem>
+                      <SelectItem value="B-">B-</SelectItem>
+                      <SelectItem value="AB+">AB+</SelectItem>
+                      <SelectItem value="AB-">AB-</SelectItem>
+                      <SelectItem value="O+">O+</SelectItem>
+                      <SelectItem value="O-">O-</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="alergias"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alergias</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Descreva alergias relevantes"
+                      {...field}
+                      value={field.value || ''}
+                      rows={4}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <FormField
               control={form.control}
@@ -587,13 +643,25 @@ export default function ProfilePage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <Input
-                type="password"
-                placeholder="Sua senha"
-                value={reauthPassword}
-                onChange={(e) => setReauthPassword(e.target.value)}
-                disabled={isAuthenticating}
-              />
+              <div className="relative">
+                <Input
+                  type={showReauthPassword ? 'text' : 'password'}
+                  placeholder="Sua senha"
+                  value={reauthPassword}
+                  onChange={(e) => setReauthPassword(e.target.value)}
+                  disabled={isAuthenticating}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowReauthPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground"
+                  aria-label={showReauthPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  disabled={isAuthenticating}
+                >
+                  {showReauthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <DialogFooter>
               <Button

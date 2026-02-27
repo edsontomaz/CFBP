@@ -2,13 +2,15 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { PwaRegister } from '@/components/pwa-register';
 
 export const metadata: Metadata = {
   title: 'CF BIKE PONTAL',
   description: 'AI-powered bike route planning',
+  manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/cf-bike-pontal-logo.png',
+    icon: '/BP_CF_1.ico',
+    apple: '/BP_CF_1.ico',
   },
 };
 
@@ -21,6 +23,7 @@ export default function RootLayout({
     <html lang="pt-BR" className="dark">
       <body className="font-body antialiased">
         <FirebaseClientProvider>
+          <PwaRegister />
           {children}
           <Toaster />
         </FirebaseClientProvider>
