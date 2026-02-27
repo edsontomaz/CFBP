@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 export function PwaRegister() {
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
       return;
     }
 
     const registerServiceWorker = async () => {
       try {
-        await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.register("/sw.js");
       } catch (error) {
-        console.error('Falha ao registrar service worker:', error);
+        console.error("Falha ao registrar service worker:", error);
       }
     };
 

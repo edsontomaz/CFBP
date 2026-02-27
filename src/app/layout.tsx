@@ -1,16 +1,16 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase';
-import { PwaRegister } from '@/components/pwa-register';
+import type { Metadata } from "next";
+import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import { FirebaseClientProvider } from "@/firebase";
+import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
-  title: 'CF BIKE PONTAL',
-  description: 'AI-powered bike route planning',
-  manifest: '/manifest.json',
+  title: "CF BIKE PONTAL",
+  description: "AI-powered bike route planning",
+  manifest: "/manifest.json",
   icons: {
-    icon: '/BP_CF_2P.ico',
-    apple: '/BP_CF_2P.ico',
+    icon: "/BP_CF_2P.ico",
+    apple: "/BP_CF_2P.ico",
   },
 };
 

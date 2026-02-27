@@ -1,9 +1,9 @@
-'use client'; // This component now uses hooks
+"use client"; // This component now uses hooks
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { LogoHeader } from '@/components/logo-header';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { LogoHeader } from "@/components/logo-header";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,43 +11,44 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   useUser,
   useAuth,
   useFirestore,
   useDoc,
   useMemoFirebase,
-} from '@/firebase';
-import { Download, LogOut, User as UserIcon, Shield } from 'lucide-react';
-import { signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+} from "@/firebase";
+import { Download, LogOut, User as UserIcon, Shield } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { doc } from "firebase/firestore";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
 export function Header() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
   const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, 'users', user.uid) : null),
-    [firestore, user]
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [firestore, user],
   );
   const { data: userProfile } = useDoc<{ role: string }>(userDocRef);
 
   const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'U';
-    const names = name.split(' ');
-    const firstInitial = names[0]?.[0] || '';
+    if (!name) return "U";
+    const names = name.split(" ");
+    const firstInitial = names[0]?.[0] || "";
     const lastInitial =
-      names.length > 1 ? names[names.length - 1]?.[0] || '' : '';
+      names.length > 1 ? names[names.length - 1]?.[0] || "" : "";
     return `${firstInitial}${lastInitial}`.toUpperCase();
   };
 
@@ -64,9 +65,9 @@ export function Header() {
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
-    const standalone = window.matchMedia('(display-mode: standalone)').matches;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
     setIsInstalled(standalone);
 
     const beforeInstallHandler = (event: Event) => {
@@ -79,12 +80,12 @@ export function Header() {
       setInstallPrompt(null);
     };
 
-    window.addEventListener('beforeinstallprompt', beforeInstallHandler);
-    window.addEventListener('appinstalled', appInstalledHandler);
+    window.addEventListener("beforeinstallprompt", beforeInstallHandler);
+    window.addEventListener("appinstalled", appInstalledHandler);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', beforeInstallHandler);
-      window.removeEventListener('appinstalled', appInstalledHandler);
+      window.removeEventListener("beforeinstallprompt", beforeInstallHandler);
+      window.removeEventListener("appinstalled", appInstalledHandler);
     };
   }, []);
 
@@ -107,10 +108,12 @@ export function Header() {
               >
                 <Avatar className="h-10 w-10">
                   <AvatarImage
-                    src={user.photoURL || ''}
-                    alt={user.displayName || 'User'}
+                    src={user.photoURL || ""}
+                    alt={user.displayName || "User"}
                   />
-                  <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+                  <AvatarFallback>
+                    {getInitials(user.displayName)}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -126,7 +129,7 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {userProfile && userProfile.role === 'admin' && (
+              {userProfile && userProfile.role === "admin" && (
                 <DropdownMenuItem asChild>
                   <Link href="/admin">
                     <Shield className="mr-2 h-4 w-4" />

@@ -1,11 +1,11 @@
-self.addEventListener('install', (event) => {
+self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('fetch', () => {
+self.addEventListener("fetch", () => {
   // Service worker mínimo para habilitar instalabilidade do PWA.
 });

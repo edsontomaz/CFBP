@@ -1,17 +1,35 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { collection, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Header } from '@/components/header';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Loader2, Trash2, FolderPlus } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { Checkbox } from '@/components/ui/checkbox';
-import Link from 'next/link';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useUser,
+  useFirestore,
+  useDoc,
+  useCollection,
+  useMemoFirebase,
+  setDocumentNonBlocking,
+} from "@/firebase";
+import {
+  collection,
+  doc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { Header } from "@/components/header";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Loader2, Trash2, FolderPlus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import Link from "next/link";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,76 +53,94 @@ export default function AdminGroupsPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  
-  const [newGroupName, setNewGroupName] = useState('');
-  const [groupError, setGroupError] = useState('');
+
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groupError, setGroupError] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const userDocRef = useMemoFirebase(() => (user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc<{ role: string }>(userDocRef);
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [firestore, user],
+  );
+  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc<{
+    role: string;
+  }>(userDocRef);
 
   const groupsQuery = useMemoFirebase(() => {
-    if (currentUserProfile && currentUserProfile.role === 'admin') {
-      return collection(firestore, 'groups');
+    if (currentUserProfile && currentUserProfile.role === "admin") {
+      return collection(firestore, "groups");
     }
     return null;
   }, [firestore, currentUserProfile]);
 
-  const { data: groups, isLoading: areGroupsLoading } = useCollection<Group>(groupsQuery);
+  const { data: groups, isLoading: areGroupsLoading } =
+    useCollection<Group>(groupsQuery);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/login');
+      router.push("/login");
     }
-    if (!isProfileLoading && currentUserProfile && currentUserProfile.role !== 'admin') {
-      router.push('/');
+    if (
+      !isProfileLoading &&
+      currentUserProfile &&
+      currentUserProfile.role !== "admin"
+    ) {
+      router.push("/");
     }
   }, [user, isUserLoading, currentUserProfile, isProfileLoading, router]);
 
   const handleAddGroup = async () => {
     const trimmedName = newGroupName.trim();
-    
+
     if (!trimmedName) {
-      setGroupError('Digite um nome para o grupo.');
+      setGroupError("Digite um nome para o grupo.");
       return;
     }
 
     if (/\s/.test(trimmedName)) {
-      setGroupError('O nome do grupo não pode conter espaços. Use hífens (-) ou underscores (_).');
+      setGroupError(
+        "O nome do grupo não pode conter espaços. Use hífens (-) ou underscores (_).",
+      );
       return;
     }
 
     // Verificar se o grupo já existe
-    const groupExists = groups?.some(g => g.name.toLowerCase() === trimmedName.toLowerCase());
+    const groupExists = groups?.some(
+      (g) => g.name.toLowerCase() === trimmedName.toLowerCase(),
+    );
     if (groupExists) {
-      setGroupError('Já existe um grupo com este nome.');
+      setGroupError("Já existe um grupo com este nome.");
       return;
     }
 
     try {
       // Usar o nome do grupo como ID do documento para facilitar o acesso às subcoletions
-      const groupRef = doc(firestore, 'groups', trimmedName);
-      await setDocumentNonBlocking(groupRef, {
-        name: trimmedName,
-        canUpload: true,
-        createdAt: serverTimestamp(),
-      }, {});
+      const groupRef = doc(firestore, "groups", trimmedName);
+      await setDocumentNonBlocking(
+        groupRef,
+        {
+          name: trimmedName,
+          canUpload: true,
+          createdAt: serverTimestamp(),
+        },
+        {},
+      );
 
       toast({
-        title: 'Grupo criado!',
+        title: "Grupo criado!",
         description: `O grupo "${trimmedName}" foi criado com sucesso.`,
       });
 
-      setNewGroupName('');
-      setGroupError('');
+      setNewGroupName("");
+      setGroupError("");
     } catch (error) {
-      console.error('Erro ao criar grupo:', error);
+      console.error("Erro ao criar grupo:", error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível criar o grupo.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível criar o grupo.",
       });
     }
   };
@@ -114,26 +150,34 @@ export default function AdminGroupsPage() {
     setDeleteDialogOpen(true);
   };
 
-  const handleToggleUploadPermission = async (group: Group, checked: boolean | 'indeterminate') => {
+  const handleToggleUploadPermission = async (
+    group: Group,
+    checked: boolean | "indeterminate",
+  ) => {
     const canUpload = checked === true;
 
     try {
-      const groupRef = doc(firestore, 'groups', group.id);
-      await setDocumentNonBlocking(groupRef, {
-        canUpload,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      const groupRef = doc(firestore, "groups", group.id);
+      await setDocumentNonBlocking(
+        groupRef,
+        {
+          canUpload,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
 
       toast({
-        title: canUpload ? 'Envio permitido' : 'Envio bloqueado',
-        description: `Grupo "${group.name}" ${canUpload ? 'pode enviar mídias' : 'somente leitura de mídias'}.`,
+        title: canUpload ? "Envio permitido" : "Envio bloqueado",
+        description: `Grupo "${group.name}" ${canUpload ? "pode enviar mídias" : "somente leitura de mídias"}.`,
       });
     } catch (error) {
-      console.error('Erro ao atualizar permissão de envio do grupo:', error);
+      console.error("Erro ao atualizar permissão de envio do grupo:", error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível atualizar a permissão de envio do grupo.',
+        variant: "destructive",
+        title: "Erro",
+        description:
+          "Não foi possível atualizar a permissão de envio do grupo.",
       });
     }
   };
@@ -143,21 +187,21 @@ export default function AdminGroupsPage() {
 
     setIsDeleting(true);
     try {
-      await deleteDoc(doc(firestore, 'groups', groupToDelete.id));
-      
+      await deleteDoc(doc(firestore, "groups", groupToDelete.id));
+
       toast({
-        title: 'Grupo excluído!',
+        title: "Grupo excluído!",
         description: `O grupo "${groupToDelete.name}" foi removido.`,
       });
-      
+
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
     } catch (error) {
-      console.error('Erro ao excluir grupo:', error);
+      console.error("Erro ao excluir grupo:", error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível excluir o grupo.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível excluir o grupo.",
       });
     } finally {
       setIsDeleting(false);
@@ -166,7 +210,7 @@ export default function AdminGroupsPage() {
 
   const isLoading = isUserLoading || isProfileLoading;
 
-  if (isLoading || !currentUserProfile || currentUserProfile.role !== 'admin') {
+  if (isLoading || !currentUserProfile || currentUserProfile.role !== "admin") {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -191,7 +235,8 @@ export default function AdminGroupsPage() {
               Gerenciar Grupos
             </CardTitle>
             <CardDescription>
-              Crie e gerencie os grupos do sistema. ({groups?.length || 0} grupos)
+              Crie e gerencie os grupos do sistema. ({groups?.length || 0}{" "}
+              grupos)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -204,23 +249,26 @@ export default function AdminGroupsPage() {
                     value={newGroupName}
                     onChange={(e) => {
                       setNewGroupName(e.target.value);
-                      setGroupError('');
+                      setGroupError("");
                     }}
                     placeholder="Nome do grupo (sem espaços)"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === "Enter") {
                         handleAddGroup();
                       }
                     }}
                   />
                   {groupError && (
-                    <p className="text-sm text-destructive mt-1">{groupError}</p>
+                    <p className="text-sm text-destructive mt-1">
+                      {groupError}
+                    </p>
                   )}
                   <p className="text-sm text-muted-foreground mt-1">
-                    Use hífens (-) ou underscores (_) em vez de espaços. Ex: CF-2026, Pebas_2026
+                    Use hífens (-) ou underscores (_) em vez de espaços. Ex:
+                    CF-2026, Pebas_2026
                   </p>
                 </div>
-                <Button 
+                <Button
                   onClick={handleAddGroup}
                   disabled={!newGroupName.trim()}
                 >
@@ -256,9 +304,14 @@ export default function AdminGroupsPage() {
                             <Checkbox
                               id={`can-upload-${group.id}`}
                               checked={group.canUpload !== false}
-                              onCheckedChange={(checked) => handleToggleUploadPermission(group, checked)}
+                              onCheckedChange={(checked) =>
+                                handleToggleUploadPermission(group, checked)
+                              }
                             />
-                            <label htmlFor={`can-upload-${group.id}`} className="text-sm text-muted-foreground cursor-pointer">
+                            <label
+                              htmlFor={`can-upload-${group.id}`}
+                              className="text-sm text-muted-foreground cursor-pointer"
+                            >
                               Permitir envio de mídias
                             </label>
                           </div>
@@ -292,14 +345,18 @@ export default function AdminGroupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o grupo <strong>{groupToDelete?.name}</strong>?
+              Tem certeza que deseja excluir o grupo{" "}
+              <strong>{groupToDelete?.name}</strong>?
               <br />
               <br />
-              Esta ação não pode ser desfeita. Os usuários que pertencem a este grupo perderão o acesso às imagens associadas.
+              Esta ação não pode ser desfeita. Os usuários que pertencem a este
+              grupo perderão o acesso às imagens associadas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isDeleting}
