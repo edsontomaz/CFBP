@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   description: 'AI-powered bike route planning',
   manifest: '/manifest.json',
   icons: {
-    icon: '/BP_CF_1.ico',
-    apple: '/BP_CF_1.ico',
+    icon: '/BP_CF_2P.ico',
+    apple: '/BP_CF_2P.ico',
   },
 };
 

@@ -8,13 +8,13 @@
     "theme_color": "#f9be00",
     "icons": [
         {
-            "src": "/BP_CF_1.ico",
+            "src": "/BP_CF_2P.ico",
             "sizes": "192x192",
             "type": "image/x-icon",
             "purpose": "any maskable"
         },
         {
-            "src": "/BP_CF_1.ico",
+            "src": "/BP_CF_2P.ico",
             "sizes": "512x512",
             "type": "image/x-icon",
             "purpose": "any maskable"
