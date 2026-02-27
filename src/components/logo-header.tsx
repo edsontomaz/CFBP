@@ -9,7 +9,7 @@ export function LogoHeader({ className }: { className?: string }) {
       alt="CF BIKE PONTAL Logo"
       width={40}
       height={40}
-      style={{ height: 'auto', width: 'auto' }}
+      className={cn('h-10 w-10', className)}
       priority
     />
   );
