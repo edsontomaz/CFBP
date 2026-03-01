@@ -1,6 +1,6 @@
 {
-  "name": "CF BIKE PONTAL",
-  "short_name": "CF BIKE PONTAL",
+  "name": "BIKE PONTAL",
+  "short_name": "BIKE PONTAL",
   "description": "AI-powered bike route planning",
   "start_url": "/",
   "display": "standalone",

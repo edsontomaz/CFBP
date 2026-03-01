@@ -73,7 +73,7 @@ export default function HomePage() {
       <main className="container mx-auto flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-6">
           <div>
-            <h1 className="text-3xl font-bold font-headline">Bem-vindo ao CF BIKE PONTAL</h1>
+            <h1 className="text-3xl font-bold font-headline">Bem-vindo ao BIKE PONTAL</h1>
             <p className="text-muted-foreground mt-2">Gerencie seu perfil e acompanhe as mídias do seu grupo.</p>
           </div>
 

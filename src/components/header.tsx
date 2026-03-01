@@ -81,7 +81,7 @@ export function Header() {
         <Link href="/" className="flex items-center gap-2 text-primary">
           <LogoHeader />
           <h1 className="text-2xl font-bold font-headline text-foreground">
-            CF BIKE PONTAL
+            BIKE PONTAL
           </h1>
         </Link>
 

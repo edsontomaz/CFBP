@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from "@/firebase";
 import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
-  title: "CF BIKE PONTAL",
+  title: "BIKE PONTAL",
   description: "AI-powered bike route planning",
   manifest: "/manifest.json",
   icons: {
