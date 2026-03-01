@@ -55,27 +55,39 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const profileFormSchema = z.object({
-  displayName: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
-  email: z.string().email(),
-  sexo: z.string().optional(),
-  endereco: z.string().optional(),
-  cep: z.string().optional(),
-  cidade: z.string().optional(),
-  estado: z.string().optional(),
-  telefone: z.string().optional(),
-  nacionalidade: z.string().optional(),
-  tipoSanguineo: z.string().optional(),
-  alergias: z.string().optional(),
-  cpf: z.string().optional(),
-  rg: z.string().optional(),
-  dataNascimento: z.string().optional(),
-  profissao: z.string().optional(),
-  fezCF: z.boolean().default(false).optional(),
-  modalidade: z.array(z.string()).default([]).optional(),
-  motivacaoViagem: z.array(z.string()).default([]).optional(),
-  grupo: z.array(z.string()).default([]).optional(),
-});
+const profileFormSchema = z
+  .object({
+    displayName: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
+    email: z.string().email(),
+    sexo: z.string().optional(),
+    endereco: z.string().optional(),
+    cep: z.string().optional(),
+    cidade: z.string().optional(),
+    estado: z.string().optional(),
+    telefone: z.string().optional(),
+    nacionalidade: z.string().optional(),
+    tipoSanguineo: z.string().optional(),
+    alergias: z.string().optional(),
+    possuiConvenio: z.string().optional(),
+    nomeConvenio: z.string().optional(),
+    cpf: z.string().optional(),
+    rg: z.string().optional(),
+    dataNascimento: z.string().optional(),
+    profissao: z.string().optional(),
+    fezCF: z.boolean().default(false).optional(),
+    modalidade: z.array(z.string()).default([]).optional(),
+    motivacaoViagem: z.array(z.string()).default([]).optional(),
+    grupo: z.array(z.string()).default([]).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.possuiConvenio === "Sim" && !data.nomeConvenio?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nomeConvenio"],
+        message: "Informe o nome do convênio.",
+      });
+    }
+  });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
@@ -128,6 +140,8 @@ export default function ProfilePage() {
       nacionalidade: "",
       tipoSanguineo: "",
       alergias: "",
+      possuiConvenio: "",
+      nomeConvenio: "",
       cpf: "",
       rg: "",
       dataNascimento: "",
@@ -174,6 +188,8 @@ export default function ProfilePage() {
         nacionalidade: userProfile.nacionalidade || "",
         tipoSanguineo: userProfile.tipoSanguineo || "",
         alergias: userProfile.alergias || "",
+        possuiConvenio: userProfile.possuiConvenio || "",
+        nomeConvenio: userProfile.nomeConvenio || "",
         cpf: userProfile.cpf || "",
         rg: userProfile.rg || "",
         dataNascimento: getSafeDateString(userProfile.dataNascimento),
@@ -213,8 +229,16 @@ export default function ProfilePage() {
 
       // Agora salva o perfil com os dados pendentes
       if (pendingFormValues && userDocRef) {
-        const dataToSave = {
+        const normalizedPendingValues = {
           ...pendingFormValues,
+          nomeConvenio:
+            pendingFormValues.possuiConvenio === "Sim"
+              ? pendingFormValues.nomeConvenio || ""
+              : "",
+        };
+
+        const dataToSave = {
+          ...normalizedPendingValues,
           dataNascimento: pendingFormValues.dataNascimento || null,
           updatedAt: serverTimestamp(),
         };
@@ -248,18 +272,24 @@ export default function ProfilePage() {
   const onSubmit = async (values: ProfileFormValues) => {
     if (!userDocRef || !user) return;
 
+    const normalizedValues = {
+      ...values,
+      nomeConvenio:
+        values.possuiConvenio === "Sim" ? values.nomeConvenio || "" : "",
+    };
+
     // Se o email foi alterado, requer re-autenticação
-    if (values.email && values.email !== user.email) {
-      setEmailToChange(values.email);
-      setPendingFormValues(values);
+    if (normalizedValues.email && normalizedValues.email !== user.email) {
+      setEmailToChange(normalizedValues.email);
+      setPendingFormValues(normalizedValues);
       setShowReauthDialog(true);
       return;
     }
 
     // Sem mudança de email, salva normalmente
     const dataToSave = {
-      ...values,
-      dataNascimento: values.dataNascimento || null,
+      ...normalizedValues,
+      dataNascimento: normalizedValues.dataNascimento || null,
       updatedAt: serverTimestamp(),
     };
 
@@ -568,6 +598,58 @@ export default function ProfilePage() {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="possuiConvenio"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Possui convênio?</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      if (value !== "Sim") {
+                        form.setValue("nomeConvenio", "", {
+                          shouldValidate: true,
+                        });
+                      }
+                    }}
+                    value={field.value || ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Sim">Sim</SelectItem>
+                      <SelectItem value="Não">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {form.watch("possuiConvenio") === "Sim" && (
+              <FormField
+                control={form.control}
+                name="nomeConvenio"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome do convênio</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Informe o nome do convênio"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

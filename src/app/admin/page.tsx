@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,8 +9,9 @@ import {
   useDoc,
   useCollection,
   useMemoFirebase,
+  setDocumentNonBlocking,
 } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, serverTimestamp } from "firebase/firestore";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, FolderPlus, ArrowLeft } from "lucide-react";
 
 interface UserProfile {
@@ -36,12 +39,21 @@ interface UserProfile {
   displayName: string;
   email: string;
   role: string;
+  eventTotalAmount?: number;
+  billingEnabled?: boolean;
 }
+
+type EventValueByUser = Record<string, number>;
+type BillingByUser = Record<string, boolean>;
 
 export default function AdminDashboardPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const [eventValueByUser, setEventValueByUser] =
+    useState<EventValueByUser>({});
+  const [billingByUser, setBillingByUser] = useState<BillingByUser>({});
+  const [savingByUser, setSavingByUser] = useState<Record<string, boolean>>({});
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, "users", user.uid) : null),
@@ -63,6 +75,21 @@ export default function AdminDashboardPage() {
     useCollection<UserProfile>(usersQuery);
 
   useEffect(() => {
+    if (!users) return;
+
+    const nextEventValueByUser: EventValueByUser = {};
+    const nextBillingByUser: BillingByUser = {};
+
+    users.forEach((item) => {
+      nextEventValueByUser[item.id] = Number(item.eventTotalAmount || 0);
+      nextBillingByUser[item.id] = Boolean(item.billingEnabled);
+    });
+
+    setEventValueByUser(nextEventValueByUser);
+    setBillingByUser(nextBillingByUser);
+  }, [users]);
+
+  useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/login");
     }
@@ -74,6 +101,43 @@ export default function AdminDashboardPage() {
       router.push("/");
     }
   }, [user, isUserLoading, currentUserProfile, isProfileLoading, router]);
+
+  const handleEventValueChange = (userId: string, value: string) => {
+    const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
+    const parsed = normalized === "" ? 0 : Number(normalized);
+    const safeValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+
+    setEventValueByUser((prev) => ({
+      ...prev,
+      [userId]: safeValue,
+    }));
+  };
+
+  const saveBillingSettings = async (
+    userId: string,
+    overrides?: { eventTotalAmount?: number; billingEnabled?: boolean },
+  ) => {
+    try {
+      setSavingByUser((prev) => ({ ...prev, [userId]: true }));
+      const userRef = doc(firestore, "users", userId);
+
+      await setDocumentNonBlocking(
+        userRef,
+        {
+          eventTotalAmount: Number(
+            overrides?.eventTotalAmount ?? eventValueByUser[userId] ?? 0,
+          ),
+          billingEnabled: Boolean(
+            overrides?.billingEnabled ?? billingByUser[userId],
+          ),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } finally {
+      setSavingByUser((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
 
   const isLoading = isUserLoading || isProfileLoading || areUsersLoading;
 
@@ -121,6 +185,8 @@ export default function AdminDashboardPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Função</TableHead>
+                  <TableHead>Valor do Evento</TableHead>
+                  <TableHead>Habilitar Cobrança</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -138,6 +204,45 @@ export default function AdminDashboardPage() {
                         >
                           {u.role}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="R$"
+                          value={
+                            eventValueByUser[u.id] && eventValueByUser[u.id] > 0
+                              ? String(eventValueByUser[u.id])
+                              : ""
+                          }
+                          onChange={(event) =>
+                            handleEventValueChange(u.id, event.target.value)
+                          }
+                          onBlur={() => saveBillingSettings(u.id)}
+                          className="w-28"
+                          disabled={Boolean(savingByUser[u.id])}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={Boolean(billingByUser[u.id])}
+                            onCheckedChange={(checked) => {
+                              const nextBillingEnabled = Boolean(checked);
+                              setBillingByUser((prev) => ({
+                                ...prev,
+                                [u.id]: nextBillingEnabled,
+                              }));
+                              void saveBillingSettings(u.id, {
+                                billingEnabled: nextBillingEnabled,
+                              });
+                            }}
+                            disabled={Boolean(savingByUser[u.id])}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {billingByUser[u.id] ? "Ativo" : "Inativo"}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button asChild variant="outline" size="sm">

@@ -296,108 +296,111 @@ export default function AdminEditUserPage() {
                       <Link href="/admin/groups">Gerenciar Grupos</Link>
                     </Button>
                   </div>
-                  {groups && groups.length > 0 ? (
-                    <div className="space-y-2 rounded-md border p-4">
-                      {groups.map((group) => (
-                        <div
-                          key={group.id}
-                          className="rounded-md border p-3 space-y-3"
-                        >
-                          <p className="font-medium">{group.name}</p>
+                  <div className="space-y-4 rounded-md border p-4">
+                    {groups && groups.length > 0 ? (
+                      <div className="space-y-2">
+                        {groups.map((group) => (
+                          <div
+                            key={group.id}
+                            className="grid grid-cols-1 gap-3 rounded-md border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4"
+                          >
+                            <p className="font-medium">{group.name}</p>
 
-                          <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(group.name)}
-                                onCheckedChange={(checked) => {
-                                  const currentGroups = field.value || [];
-                                  const currentUploadGroups =
-                                    form.getValues("uploadGroups") || [];
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 sm:justify-self-end">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value?.includes(group.name)}
+                                  onCheckedChange={(checked) => {
+                                    const currentGroups = field.value || [];
+                                    const currentUploadGroups =
+                                      form.getValues("uploadGroups") || [];
 
-                                  if (checked) {
-                                    field.onChange([
-                                      ...currentGroups,
-                                      group.name,
-                                    ]);
-                                  } else {
-                                    field.onChange(
-                                      currentGroups.filter(
-                                        (name) => name !== group.name,
-                                      ),
-                                    );
-                                    form.setValue(
-                                      "uploadGroups",
-                                      currentUploadGroups.filter(
-                                        (name) => name !== group.name,
-                                      ),
-                                      { shouldValidate: true },
-                                    );
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                              (Acesso/Leitura)
-                            </FormLabel>
-                          </FormItem>
+                                    if (checked) {
+                                      field.onChange([
+                                        ...currentGroups,
+                                        group.name,
+                                      ]);
+                                    } else {
+                                      field.onChange(
+                                        currentGroups.filter(
+                                          (name) => name !== group.name,
+                                        ),
+                                      );
+                                      form.setValue(
+                                        "uploadGroups",
+                                        currentUploadGroups.filter(
+                                          (name) => name !== group.name,
+                                        ),
+                                        { shouldValidate: true },
+                                      );
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormLabel className="font-normal cursor-pointer">
+                                Acesso/Leitura
+                              </FormLabel>
+                            </FormItem>
 
-                          <FormField
-                            control={form.control}
-                            name="uploadGroups"
-                            render={({ field: uploadField }) => (
-                              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={uploadField.value?.includes(
-                                      group.name,
-                                    )}
-                                    onCheckedChange={(checked) => {
-                                      const currentUploadGroups =
-                                        uploadField.value || [];
-                                      const currentGroups =
-                                        form.getValues("grupo") || [];
+                            <FormField
+                              control={form.control}
+                              name="uploadGroups"
+                              render={({ field: uploadField }) => (
+                                <FormItem className="flex flex-row items-center space-x-2 space-y-0 sm:justify-self-end">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={uploadField.value?.includes(
+                                        group.name,
+                                      )}
+                                      onCheckedChange={(checked) => {
+                                        const currentUploadGroups =
+                                          uploadField.value || [];
+                                        const currentGroups =
+                                          form.getValues("grupo") || [];
 
-                                      if (checked) {
-                                        if (
-                                          !currentGroups.includes(group.name)
-                                        ) {
-                                          form.setValue(
-                                            "grupo",
-                                            [...currentGroups, group.name],
-                                            { shouldValidate: true },
+                                        if (checked) {
+                                          if (
+                                            !currentGroups.includes(group.name)
+                                          ) {
+                                            form.setValue(
+                                              "grupo",
+                                              [...currentGroups, group.name],
+                                              { shouldValidate: true },
+                                            );
+                                          }
+                                          uploadField.onChange([
+                                            ...currentUploadGroups,
+                                            group.name,
+                                          ]);
+                                        } else {
+                                          uploadField.onChange(
+                                            currentUploadGroups.filter(
+                                              (name) => name !== group.name,
+                                            ),
                                           );
                                         }
-                                        uploadField.onChange([
-                                          ...currentUploadGroups,
-                                          group.name,
-                                        ]);
-                                      } else {
-                                        uploadField.onChange(
-                                          currentUploadGroups.filter(
-                                            (name) => name !== group.name,
-                                          ),
-                                        );
-                                      }
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="font-normal cursor-pointer">
-                                  (GRAVAÇÃO)
-                                </FormLabel>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
-                      Nenhum grupo disponível.{" "}
-                      <Link href="/admin/groups" className="underline">
-                        Criar grupos
-                      </Link>
-                    </div>
-                  )}
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal cursor-pointer">
+                                    Gravação
+                                  </FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
+                        Nenhum grupo disponível.{" "}
+                        <Link href="/admin/groups" className="underline">
+                          Criar grupos
+                        </Link>
+                      </div>
+                    )}
+
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

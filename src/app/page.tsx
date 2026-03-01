@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Images, User, Download, Shield } from 'lucide-react';
+import { Loader2, Images, User, Download, Shield, Wallet } from 'lucide-react';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   useUser,
   useDoc,
@@ -17,7 +18,17 @@ import { doc } from 'firebase/firestore';
 
 interface UserProfile {
   role?: string;
+  billingEnabled?: boolean;
+  eventTotalAmount?: number;
+  amountPaid?: number;
+  nextDueDate?: string;
 }
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
 
 export default function HomePage() {
   const { user, isUserLoading } = useUser();
@@ -31,6 +42,16 @@ export default function HomePage() {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   const isAdmin = userProfile?.role === 'admin';
+  const isBillingEnabled = Boolean(userProfile?.billingEnabled);
+  const totalAmount = Number(userProfile?.eventTotalAmount || 0);
+  const amountPaid = Number(userProfile?.amountPaid || 0);
+  const debtAmount = Math.max(totalAmount - amountPaid, 0);
+
+  const isPaid = totalAmount > 0 && debtAmount === 0;
+  const isPartial = amountPaid > 0 && debtAmount > 0;
+
+  const statusLabel = isPaid ? '🟢 Pago' : isPartial ? '🟡 Parcial' : '🔴 Pendente';
+  const statusVariant = isPaid ? 'default' : isPartial ? 'secondary' : 'destructive';
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -81,6 +102,49 @@ export default function HomePage() {
                   <Button asChild variant="outline">
                     <Link href="/export">Abrir Exportação</Link>
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Financeiro</CardTitle>
+                  <CardDescription>Abra o resumo financeiro consolidado dos ciclistas.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/admin/financeiro">Abrir Resumo Financeiro</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isBillingEnabled && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Resumo Financeiro</CardTitle>
+                  <CardDescription>
+                    Status rápido do pagamento do pacote do evento.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Badge variant={statusVariant}>{statusLabel}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total do Pacote</span>
+                    <span className="font-medium">{formatCurrency(totalAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Já Pago</span>
+                    <span className="font-medium">{formatCurrency(amountPaid)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Saldo Devedor</span>
+                    <span className="font-medium">{formatCurrency(debtAmount)}</span>
+                  </div>
                 </CardContent>
               </Card>
             )}
