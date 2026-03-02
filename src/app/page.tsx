@@ -5,9 +5,18 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Images, User, Download, Shield, Wallet } from 'lucide-react';
 import { Header } from '@/components/header';
+import { PwaRegister } from '@/components/pwa-register';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   useUser,
   useDoc,
@@ -21,8 +30,25 @@ interface UserProfile {
   billingEnabled?: boolean;
   eventTotalAmount?: number;
   amountPaid?: number;
+  paymentValues?: number[];
+  paymentDueDates?: string[];
   nextDueDate?: string;
 }
+
+const dueMonthLabels = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -45,13 +71,39 @@ export default function HomePage() {
   const isBillingEnabled = Boolean(userProfile?.billingEnabled);
   const totalAmount = Number(userProfile?.eventTotalAmount || 0);
   const amountPaid = Number(userProfile?.amountPaid || 0);
+  const paymentValues = Array.isArray(userProfile?.paymentValues)
+    ? userProfile.paymentValues
+    : [];
+  const paymentDueDates = Array.isArray(userProfile?.paymentDueDates)
+    ? userProfile.paymentDueDates
+    : [];
   const debtAmount = Math.max(totalAmount - amountPaid, 0);
+  const progressPercentage =
+    totalAmount > 0
+      ? Math.min((Math.max(amountPaid, 0) / totalAmount) * 100, 100)
+      : 0;
 
-  const isPaid = totalAmount > 0 && debtAmount === 0;
-  const isPartial = amountPaid > 0 && debtAmount > 0;
+  let remainingPaid = amountPaid;
+  const installmentRows = paymentValues
+    .map((value, index) => ({
+      number: index + 1,
+      dueDate:
+        String(paymentDueDates[index] || '').trim() ||
+        `10/${dueMonthLabels[index % dueMonthLabels.length]}`,
+      value: Number(value || 0),
+    }))
+    .filter((item) => item.value > 0)
+    .map((item) => {
+      const isConfirmed = remainingPaid >= item.value;
+      if (isConfirmed) {
+        remainingPaid -= item.value;
+      }
 
-  const statusLabel = isPaid ? '🟢 Pago' : isPartial ? '🟡 Parcial' : '🔴 Pendente';
-  const statusVariant = isPaid ? 'default' : isPartial ? 'secondary' : 'destructive';
+      return {
+        ...item,
+        status: isConfirmed ? 'Confirmado' : 'Aguardando',
+      };
+    });
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -69,6 +121,7 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <PwaRegister />
       <Header />
       <main className="container mx-auto flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-6">
@@ -129,9 +182,12 @@ export default function HomePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={statusVariant}>{statusLabel}</Badge>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Progresso do Pagamento</span>
+                      <span className="text-sm font-medium">{progressPercentage.toFixed(0)}%</span>
+                    </div>
+                    <Progress value={progressPercentage} />
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Total do Pacote</span>
@@ -145,6 +201,31 @@ export default function HomePage() {
                     <span className="text-sm text-muted-foreground">Saldo Devedor</span>
                     <span className="font-medium">{formatCurrency(debtAmount)}</span>
                   </div>
+
+                  {installmentRows.length > 0 && (
+                    <div className="pt-2">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Parcela</TableHead>
+                            <TableHead>Vencimento</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {installmentRows.map((installment) => (
+                            <TableRow key={`installment-${installment.number}`}>
+                              <TableCell>{installment.number}</TableCell>
+                              <TableCell>{installment.dueDate}</TableCell>
+                              <TableCell>{formatCurrency(installment.value)}</TableCell>
+                              <TableCell>{installment.status}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

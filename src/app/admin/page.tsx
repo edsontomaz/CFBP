@@ -32,7 +32,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, FolderPlus, ArrowLeft } from "lucide-react";
+import { Loader2, FolderPlus, ArrowLeft, Wallet } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -160,7 +160,13 @@ export default function AdminDashboardPage() {
               Voltar
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild variant="outline">
+            <Link href="/admin/financeiro">
+              <Wallet className="mr-2 h-4 w-4" />
+              Abrir Resumo Financeiro
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href="/admin/groups">
               <FolderPlus className="mr-2 h-4 w-4" />
               Gerenciar Grupos

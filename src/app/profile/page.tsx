@@ -65,6 +65,7 @@ const profileFormSchema = z
     cidade: z.string().optional(),
     estado: z.string().optional(),
     telefone: z.string().optional(),
+    telefoneEmergencia: z.string().optional(),
     nacionalidade: z.string().optional(),
     tipoSanguineo: z.string().optional(),
     alergias: z.string().optional(),
@@ -137,6 +138,7 @@ export default function ProfilePage() {
       cidade: "",
       estado: "",
       telefone: "",
+      telefoneEmergencia: "",
       nacionalidade: "",
       tipoSanguineo: "",
       alergias: "",
@@ -185,6 +187,7 @@ export default function ProfilePage() {
         cidade: userProfile.cidade || "",
         estado: userProfile.estado || "",
         telefone: userProfile.telefone || "",
+        telefoneEmergencia: userProfile.telefoneEmergencia || "",
         nacionalidade: userProfile.nacionalidade || "",
         tipoSanguineo: userProfile.tipoSanguineo || "",
         alergias: userProfile.alergias || "",
@@ -508,6 +511,24 @@ export default function ProfilePage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Telefone</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="(00) 90000-0000"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="telefoneEmergencia"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Telefone de Emergência</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="(00) 90000-0000"
