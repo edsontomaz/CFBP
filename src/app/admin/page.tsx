@@ -163,7 +163,7 @@ export default function AdminDashboardPage() {
           <Button asChild variant="outline">
             <Link href="/admin/financeiro">
               <Wallet className="mr-2 h-4 w-4" />
-              Abrir Resumo Financeiro
+              Resumo Financeiro
             </Link>
           </Button>
           <Button asChild variant="outline">

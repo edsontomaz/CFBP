@@ -19,6 +19,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   verifyBeforeUpdateEmail,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Header } from "@/components/header";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -314,6 +315,31 @@ export default function ProfilePage() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!user?.email) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível identificar o e-mail da conta.",
+      });
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      toast({
+        title: "Link enviado!",
+        description: `Enviamos para ${user.email} o link para alterar sua senha.`,
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível enviar o link para alterar a senha.",
+      });
+    }
+  };
+
   if (isUserLoading || isProfileLoading || !user || !userProfile) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -327,7 +353,10 @@ export default function ProfilePage() {
       <Header />
       <main className="container mx-auto max-w-3xl p-4 md:p-8">
         <Button variant="outline" asChild className="mb-4">
-          <Link href="/">Voltar</Link>
+          <Link href="/">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Link>
         </Button>
         <h1 className="mb-8 text-3xl font-bold font-headline text-center">
           Meu Perfil
@@ -785,12 +814,23 @@ export default function ProfilePage() {
               )}
             />
 
-            <div className="md:col-span-2 mt-4">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+            <div className="md:col-span-2 mt-4 flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={form.formState.isSubmitting}
+              >
                 {form.formState.isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Salvar Alterações
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleChangePassword}
+              >
+                Alterar Senha
               </Button>
             </div>
           </form>

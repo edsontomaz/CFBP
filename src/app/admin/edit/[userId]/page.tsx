@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Header } from "@/components/header";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
@@ -238,7 +238,10 @@ export default function AdminEditUserPage() {
       <Header />
       <main className="container mx-auto max-w-2xl p-4 md:p-8">
         <Button variant="outline" asChild className="mb-4">
-          <Link href="/admin">Voltar para o Painel</Link>
+          <Link href="/admin">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar para o Painel
+          </Link>
         </Button>
         <h1 className="mb-2 text-3xl font-bold font-headline">
           Editar Usuário

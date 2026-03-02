@@ -29,8 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, ArrowLeft, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface FinancialUser {
@@ -111,6 +111,11 @@ const normalizeInstallments = (
       String(dueDates[index] || ""),
     ),
   };
+};
+
+const getFirstName = (fullName?: string) => {
+  if (!fullName) return "Sem nome";
+  return fullName.trim().split(" ")[0] || "Sem nome";
 };
 
 export default function AdminFinanceiroPage() {
@@ -214,6 +219,9 @@ export default function AdminFinanceiroPage() {
           amountPaid: totalPaid,
           updatedAt: serverTimestamp(),
           paymentDueDates: dueDates,
+          paymentNotificationPending: true,
+          paymentNotificationMessage: "Atualizado Pagamento",
+          paymentNotificationUpdatedAt: serverTimestamp(),
         },
         { merge: true },
       );
@@ -293,11 +301,17 @@ export default function AdminFinanceiroPage() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="container mx-auto flex-1 p-4 md:p-8">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar para Início
+              Voltar
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin">
+              <Shield className="mr-2 h-4 w-4" />
+              Abrir Admin
             </Link>
           </Button>
         </div>
@@ -342,32 +356,32 @@ export default function AdminFinanceiroPage() {
                     0,
                   );
                   const debt = Math.max(total - paid, 0);
-
-                  const isPaid = total > 0 && debt === 0;
-                  const isPartial = paid > 0 && debt > 0;
-
-                  const statusLabel = isPaid
-                    ? "🟢 Quitado"
-                    : isPartial
-                      ? "🟡 Parcial"
-                      : "🔴 Pendente";
-
-                  const statusVariant = isPaid
-                    ? "default"
-                    : isPartial
-                      ? "secondary"
-                      : "destructive";
+                  const progressPercentage =
+                    total > 0 ? Math.min((Math.max(paid, 0) / total) * 100, 100) : 0;
+                  const firstName = getFirstName(item.displayName);
+                  const paymentStatus =
+                    progressPercentage >= 100
+                      ? "Pago"
+                      : progressPercentage > 0
+                        ? "Parcial"
+                        : "Pendente";
 
                   return [
                       <TableRow key={`${item.id}-summary`}>
-                        <TableCell className="font-medium">
-                          {item.displayName || "Sem nome"}
-                        </TableCell>
+                        <TableCell className="font-medium">{firstName}</TableCell>
                         <TableCell>{formatCurrency(total)}</TableCell>
                         <TableCell>{formatCurrency(paid)}</TableCell>
                         <TableCell>{formatCurrency(debt)}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant}>{statusLabel}</Badge>
+                          <div className="min-w-32 space-y-1">
+                            <div className="text-xs font-medium">
+                              {paymentStatus}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {progressPercentage.toFixed(0)}%
+                            </div>
+                            <Progress value={progressPercentage} />
+                          </div>
                         </TableCell>
                       </TableRow>,
 
@@ -382,7 +396,7 @@ export default function AdminFinanceiroPage() {
                                 onClick={() => handleAddPayment(item.id)}
                                 disabled={installmentsCountRaw >= MAX_INSTALLMENTS}
                               >
-                                Adicionar pagamento
+                                + Pagamento
                               </Button>
                               <Button
                                 type="button"
@@ -391,9 +405,7 @@ export default function AdminFinanceiroPage() {
                                 onClick={() => handleSavePayments(item.id)}
                                 disabled={Boolean(savingByUser[item.id])}
                               >
-                                {savingByUser[item.id]
-                                  ? "Salvando..."
-                                  : "Salvar Pagamentos"}
+                                {savingByUser[item.id] ? "Salvando..." : "Salvar"}
                               </Button>
                             </div>
 

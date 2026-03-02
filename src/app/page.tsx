@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Images, User, Download, Shield, Wallet } from 'lucide-react';
 import { Header } from '@/components/header';
@@ -22,8 +22,10 @@ import {
   useDoc,
   useMemoFirebase,
   useFirestore,
+  setDocumentNonBlocking,
 } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
   role?: string;
@@ -33,6 +35,8 @@ interface UserProfile {
   paymentValues?: number[];
   paymentDueDates?: string[];
   nextDueDate?: string;
+  paymentNotificationPending?: boolean;
+  paymentNotificationMessage?: string;
 }
 
 const dueMonthLabels = [
@@ -60,6 +64,8 @@ export default function HomePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
+  const isHandlingPaymentNotification = useRef(false);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -110,6 +116,36 @@ export default function HomePage() {
       router.push('/login');
     }
   }, [isUserLoading, user, router]);
+
+  useEffect(() => {
+    const showPaymentUpdateAlert = async () => {
+      if (!userDocRef || !userProfile?.paymentNotificationPending || isHandlingPaymentNotification.current) {
+        return;
+      }
+
+      isHandlingPaymentNotification.current = true;
+
+      toast({
+        title: userProfile.paymentNotificationMessage || 'Atualizado Pagamento',
+        description: 'Seu resumo financeiro foi atualizado pelo administrador.',
+      });
+
+      try {
+        await setDocumentNonBlocking(
+          userDocRef,
+          {
+            paymentNotificationPending: false,
+            paymentNotificationMessage: '',
+          },
+          { merge: true },
+        );
+      } finally {
+        isHandlingPaymentNotification.current = false;
+      }
+    };
+
+    void showPaymentUpdateAlert();
+  }, [toast, userDocRef, userProfile?.paymentNotificationPending, userProfile?.paymentNotificationMessage]);
 
   if (isUserLoading || isProfileLoading || !user) {
     return (
@@ -167,11 +203,35 @@ export default function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <Button asChild variant="outline">
-                    <Link href="/admin/financeiro">Abrir Resumo Financeiro</Link>
+                    <Link href="/admin/financeiro">Resumo Financeiro</Link>
                   </Button>
                 </CardContent>
               </Card>
             )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
+                <CardDescription>Veja e envie mídias para os grupos aos quais você pertence.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link href="/gallery">Abrir Galeria</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Meu Perfil</CardTitle>
+                <CardDescription>Atualize seus dados cadastrais e visualize seus grupos.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link href="/profile">Ir para Perfil</Link>
+                </Button>
+              </CardContent>
+            </Card>
 
             {isBillingEnabled && (
               <Card>
@@ -208,8 +268,7 @@ export default function HomePage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Parcela</TableHead>
-                            <TableHead>Vencimento</TableHead>
-                            <TableHead>Valor</TableHead>
+                            <TableHead>Data Pag.</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -218,7 +277,6 @@ export default function HomePage() {
                             <TableRow key={`installment-${installment.number}`}>
                               <TableCell>{installment.number}</TableCell>
                               <TableCell>{installment.dueDate}</TableCell>
-                              <TableCell>{formatCurrency(installment.value)}</TableCell>
                               <TableCell>{installment.status}</TableCell>
                             </TableRow>
                           ))}
@@ -229,30 +287,6 @@ export default function HomePage() {
                 </CardContent>
               </Card>
             )}
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
-                <CardDescription>Veja e envie mídias para os grupos aos quais você pertence.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="outline">
-                  <Link href="/gallery">Abrir Galeria</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Meu Perfil</CardTitle>
-                <CardDescription>Atualize seus dados cadastrais e visualize seus grupos.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="outline">
-                  <Link href="/profile">Ir para Perfil</Link>
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </main>

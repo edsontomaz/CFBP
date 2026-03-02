@@ -26,7 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, Trash2, FolderPlus } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, FolderPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
@@ -224,7 +224,10 @@ export default function AdminGroupsPage() {
       <main className="flex-1 container mx-auto p-4 md:p-8">
         <div className="mb-4">
           <Button variant="outline" asChild>
-            <Link href="/admin">← Voltar para o Painel</Link>
+            <Link href="/admin">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para o Painel
+            </Link>
           </Button>
         </div>
 
