@@ -209,7 +209,6 @@ export default function AdminGroupsPage() {
   };
 
   const isLoading = isUserLoading || isProfileLoading;
-
   if (isLoading || !currentUserProfile || currentUserProfile.role !== "admin") {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">

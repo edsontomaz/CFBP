@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Images, User, Download, Shield, Wallet } from 'lucide-react';
 import { Header } from '@/components/header';
@@ -23,8 +23,11 @@ import {
   useMemoFirebase,
   useFirestore,
   setDocumentNonBlocking,
+  useCollection,
+  useStorage,
 } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
+import { getMetadata, listAll, ref } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
@@ -37,6 +40,11 @@ interface UserProfile {
   nextDueDate?: string;
   paymentNotificationPending?: boolean;
   paymentNotificationMessage?: string;
+}
+
+interface GroupData {
+  id: string;
+  name: string;
 }
 
 const dueMonthLabels = [
@@ -60,12 +68,22 @@ const formatCurrency = (value: number) =>
     currency: 'BRL',
   }).format(value);
 
+const GALLERY_STORAGE_LIMIT_BYTES = 512 * 1024 * 1024 * 1024;
+
+const formatBytesToGb = (valueInBytes: number) => {
+  const gb = valueInBytes / (1024 * 1024 * 1024);
+  return gb.toFixed(2);
+};
+
 export default function HomePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const router = useRouter();
   const { toast } = useToast();
   const isHandlingPaymentNotification = useRef(false);
+  const [usedGalleryStorageBytes, setUsedGalleryStorageBytes] = useState(0);
+  const [isLoadingGalleryStorage, setIsLoadingGalleryStorage] = useState(false);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -75,6 +93,11 @@ export default function HomePage() {
 
   const isAdmin = userProfile?.role === 'admin';
   const isBillingEnabled = Boolean(userProfile?.billingEnabled);
+  const groupsQuery = useMemoFirebase(
+    () => (isAdmin ? collection(firestore, 'groups') : null),
+    [firestore, isAdmin],
+  );
+  const { data: groups } = useCollection<GroupData>(groupsQuery);
   const totalAmount = Number(userProfile?.eventTotalAmount || 0);
   const amountPaid = Number(userProfile?.amountPaid || 0);
   const paymentValues = Array.isArray(userProfile?.paymentValues)
@@ -88,6 +111,10 @@ export default function HomePage() {
     totalAmount > 0
       ? Math.min((Math.max(amountPaid, 0) / totalAmount) * 100, 100)
       : 0;
+  const galleryStorageProgressPercentage = Math.min(
+    (usedGalleryStorageBytes / GALLERY_STORAGE_LIMIT_BYTES) * 100,
+    100,
+  );
 
   let remainingPaid = amountPaid;
   const installmentRows = paymentValues
@@ -116,6 +143,48 @@ export default function HomePage() {
       router.push('/login');
     }
   }, [isUserLoading, user, router]);
+
+  useEffect(() => {
+    const loadGalleryStorageUsage = async () => {
+      if (!isAdmin) {
+        setUsedGalleryStorageBytes(0);
+        return;
+      }
+
+      if (!groups || groups.length === 0) {
+        setUsedGalleryStorageBytes(0);
+        return;
+      }
+
+      setIsLoadingGalleryStorage(true);
+
+      try {
+        const sizeByGroup = await Promise.all(
+          groups.map(async (group) => {
+            const groupRef = ref(storage, group.name);
+            const listResult = await listAll(groupRef);
+
+            const sizes = await Promise.all(
+              listResult.items.map(async (itemRef) => {
+                const metadata = await getMetadata(itemRef);
+                return Number(metadata.size || 0);
+              }),
+            );
+
+            return sizes.reduce((acc, current) => acc + current, 0);
+          }),
+        );
+
+        setUsedGalleryStorageBytes(sizeByGroup.reduce((acc, current) => acc + current, 0));
+      } catch (error) {
+        console.error('Erro ao calcular uso de armazenamento da galeria:', error);
+      } finally {
+        setIsLoadingGalleryStorage(false);
+      }
+    };
+
+    void loadGalleryStorageUsage();
+  }, [groups, isAdmin, storage]);
 
   useEffect(() => {
     const showPaymentUpdateAlert = async () => {
@@ -212,12 +281,25 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
-                <CardDescription>Veja e envie mídias para os grupos aos quais você pertence.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <Button asChild variant="outline">
                   <Link href="/gallery">Abrir Galeria</Link>
                 </Button>
+                {isAdmin && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Armazenamento da galeria</span>
+                      <span className="font-medium">
+                        {isLoadingGalleryStorage
+                          ? 'Calculando...'
+                          : `${formatBytesToGb(usedGalleryStorageBytes)} GB / 512.00 GB`}
+                      </span>
+                    </div>
+                    <Progress value={galleryStorageProgressPercentage} />
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">Veja e envie mídias para os grupos aos quais você pertence.</p>
               </CardContent>
             </Card>
 

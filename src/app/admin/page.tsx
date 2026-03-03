@@ -29,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, FolderPlus, ArrowLeft, Wallet } from "lucide-react";
@@ -37,6 +36,7 @@ import { Loader2, FolderPlus, ArrowLeft, Wallet } from "lucide-react";
 interface UserProfile {
   id: string;
   displayName: string;
+  apelido?: string;
   email: string;
   role: string;
   eventTotalAmount?: number;
@@ -58,6 +58,12 @@ export default function AdminDashboardPage() {
   const getFirstName = (fullName?: string) => {
     if (!fullName) return "Sem nome";
     return fullName.trim().split(" ")[0] || "Sem nome";
+  };
+
+  const getDisplayNameForAdmin = (userProfile: UserProfile) => {
+    const nickname = String(userProfile.apelido || "").trim();
+    if (nickname) return nickname;
+    return getFirstName(userProfile.displayName);
   };
 
   const userDocRef = useMemoFirebase(
@@ -194,7 +200,6 @@ export default function AdminDashboardPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Função</TableHead>
                   <TableHead>Valor do Evento</TableHead>
                   <TableHead>Habilitar Cobrança</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -205,14 +210,7 @@ export default function AdminDashboardPage() {
                   users.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">
-                        {getFirstName(u.displayName)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={u.role === "admin" ? "default" : "secondary"}
-                        >
-                          {u.role}
-                        </Badge>
+                        {getDisplayNameForAdmin(u)}
                       </TableCell>
                       <TableCell>
                         <Input

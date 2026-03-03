@@ -58,6 +58,7 @@ import {
 
 const profileFormSchema = z
   .object({
+    apelido: z.string().optional(),
     displayName: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
     email: z.string().email(),
     sexo: z.string().optional(),
@@ -137,6 +138,7 @@ export default function ProfilePage() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
+      apelido: "",
       displayName: "",
       email: "",
       sexo: "",
@@ -261,6 +263,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (userProfile) {
       const formData = {
+        apelido: userProfile.apelido || "",
         displayName: userProfile.displayName || "",
         email: userProfile.email || "",
         sexo: userProfile.sexo || "",
@@ -447,6 +450,20 @@ export default function ProfilePage() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8"
           >
+            <FormField
+              control={form.control}
+              name="apelido"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Apelido</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Seu apelido" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="displayName"
