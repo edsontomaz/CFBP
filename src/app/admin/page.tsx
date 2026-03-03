@@ -201,7 +201,7 @@ export default function AdminDashboardPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Valor do Evento</TableHead>
-                  <TableHead>Habilitar Cobrança</TableHead>
+                  <TableHead>Pagamento</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -252,9 +252,14 @@ export default function AdminDashboardPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/admin/edit/${u.id}`}>Editar</Link>
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/admin/view/${u.id}`}>Perfil</Link>
+                          </Button>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/admin/edit/${u.id}`}>Grupo</Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
