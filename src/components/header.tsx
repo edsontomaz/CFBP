@@ -115,12 +115,10 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {!isInstalled && installPrompt && (
-                <DropdownMenuItem onClick={handleInstallApp}>
-                  <Download className="mr-2 h-4 w-4" />
-                  <span>Instalar app</span>
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={handleInstallApp} disabled={isInstalled}>
+                <Download className="mr-2 h-4 w-4" />
+                <span>Instalar app</span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />

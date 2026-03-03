@@ -74,7 +74,13 @@ const profileFormSchema = z
     nomeConvenio: z.string().optional(),
     cpf: z.string().optional(),
     rg: z.string().optional(),
-    dataNascimento: z.string().optional(),
+    dataNascimento: z
+      .string()
+      .optional()
+      .refine(
+        (value) => !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value),
+        "Use o formato DD/MM/AAAA.",
+      ),
     profissao: z.string().optional(),
     fezCF: z.boolean().default(false).optional(),
     modalidade: z.array(z.string()).default([]).optional(),
@@ -156,6 +162,96 @@ export default function ProfilePage() {
     },
   });
 
+  const formatBirthDateForInput = (dateValue: any): string => {
+    if (!dateValue) return "";
+
+    if (dateValue instanceof Timestamp) {
+      const date = dateValue.toDate();
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    if (typeof dateValue === "string") {
+      const trimmed = dateValue.split("T")[0].trim();
+
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+        return trimmed;
+      }
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        const [year, month, day] = trimmed.split("-");
+        return `${day}/${month}/${year}`;
+      }
+    }
+
+    return "";
+  };
+
+  const formatBirthDateOnType = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  };
+
+  const normalizeBirthDateForSave = (value?: string | null): string | null => {
+    if (!value) return null;
+    const trimmedValue = value.trim();
+
+    const match = trimmedValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return null;
+
+    const [, day, month, year] = match;
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatCepOnType = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  };
+
+  const formatPhoneOnType = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+
+    if (digits.length === 0) return "";
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const formatRgOnType = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+
+    if (digits.length === 0) return "";
+    if (digits.length === 1) return digits;
+
+    const body = digits.slice(0, -1);
+    const checkDigit = digits.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${formattedBody}-${checkDigit}`;
+  };
+
+  const formatCpfOnType = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) {
+      return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    }
+    if (digits.length <= 9) {
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    }
+
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  };
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/login");
@@ -164,39 +260,24 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (userProfile) {
-      // This function safely formats the date of birth, whether it's a string or a Firestore Timestamp.
-      // This prevents client-side crashes when rendering the form.
-      const getSafeDateString = (dateValue: any): string => {
-        if (!dateValue) return "";
-        // If it's a Firestore Timestamp, convert it
-        if (dateValue instanceof Timestamp) {
-          return dateValue.toDate().toISOString().split("T")[0];
-        }
-        // If it's already a string, just use it (and handle potential ISO format)
-        if (typeof dateValue === "string") {
-          return dateValue.split("T")[0];
-        }
-        return "";
-      };
-
       const formData = {
         displayName: userProfile.displayName || "",
         email: userProfile.email || "",
         sexo: userProfile.sexo || "",
         endereco: userProfile.endereco || "",
-        cep: userProfile.cep || "",
+        cep: formatCepOnType(userProfile.cep || ""),
         cidade: userProfile.cidade || "",
         estado: userProfile.estado || "",
-        telefone: userProfile.telefone || "",
-        telefoneEmergencia: userProfile.telefoneEmergencia || "",
+        telefone: formatPhoneOnType(userProfile.telefone || ""),
+        telefoneEmergencia: formatPhoneOnType(userProfile.telefoneEmergencia || ""),
         nacionalidade: userProfile.nacionalidade || "",
         tipoSanguineo: userProfile.tipoSanguineo || "",
         alergias: userProfile.alergias || "",
         possuiConvenio: userProfile.possuiConvenio || "",
         nomeConvenio: userProfile.nomeConvenio || "",
-        cpf: userProfile.cpf || "",
-        rg: userProfile.rg || "",
-        dataNascimento: getSafeDateString(userProfile.dataNascimento),
+        cpf: formatCpfOnType(userProfile.cpf || ""),
+        rg: formatRgOnType(userProfile.rg || ""),
+        dataNascimento: formatBirthDateForInput(userProfile.dataNascimento),
         profissao: userProfile.profissao || "",
         fezCF: userProfile.fezCF || false,
         modalidade: userProfile.modalidade || [],
@@ -243,7 +324,7 @@ export default function ProfilePage() {
 
         const dataToSave = {
           ...normalizedPendingValues,
-          dataNascimento: pendingFormValues.dataNascimento || null,
+          dataNascimento: normalizeBirthDateForSave(pendingFormValues.dataNascimento),
           updatedAt: serverTimestamp(),
         };
         await setDocumentNonBlocking(userDocRef, dataToSave, { merge: true });
@@ -293,7 +374,7 @@ export default function ProfilePage() {
     // Sem mudança de email, salva normalmente
     const dataToSave = {
       ...normalizedValues,
-      dataNascimento: normalizedValues.dataNascimento || null,
+      dataNascimento: normalizeBirthDateForSave(normalizedValues.dataNascimento),
       updatedAt: serverTimestamp(),
     };
 
@@ -401,7 +482,17 @@ export default function ProfilePage() {
                 <FormItem>
                   <FormLabel>Data de Nascimento</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} value={field.value || ""} />
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="DD/MM/AAAA"
+                      maxLength={10}
+                      {...field}
+                      value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatBirthDateOnType(event.target.value))
+                      }
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -442,9 +533,15 @@ export default function ProfilePage() {
                   <FormLabel>CPF</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={14}
                       placeholder="000.000.000-00"
                       {...field}
                       value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatCpfOnType(event.target.value))
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -460,9 +557,15 @@ export default function ProfilePage() {
                   <FormLabel>RG</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={12}
                       placeholder="00.000.000-0"
                       {...field}
                       value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatRgOnType(event.target.value))
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -496,9 +599,15 @@ export default function ProfilePage() {
                   <FormLabel>CEP</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={9}
                       placeholder="00000-000"
                       {...field}
                       value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatCepOnType(event.target.value))
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -542,9 +651,15 @@ export default function ProfilePage() {
                   <FormLabel>Telefone</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={15}
                       placeholder="(00) 90000-0000"
                       {...field}
                       value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatPhoneOnType(event.target.value))
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -560,9 +675,15 @@ export default function ProfilePage() {
                   <FormLabel>Telefone de Emergência</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={15}
                       placeholder="(00) 90000-0000"
                       {...field}
                       value={field.value || ""}
+                      onChange={(event) =>
+                        field.onChange(formatPhoneOnType(event.target.value))
+                      }
                     />
                   </FormControl>
                   <FormMessage />

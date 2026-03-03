@@ -55,6 +55,11 @@ export default function AdminDashboardPage() {
   const [billingByUser, setBillingByUser] = useState<BillingByUser>({});
   const [savingByUser, setSavingByUser] = useState<Record<string, boolean>>({});
 
+  const getFirstName = (fullName?: string) => {
+    if (!fullName) return "Sem nome";
+    return fullName.trim().split(" ")[0] || "Sem nome";
+  };
+
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, "users", user.uid) : null),
     [firestore, user],
@@ -189,7 +194,6 @@ export default function AdminDashboardPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Função</TableHead>
                   <TableHead>Valor do Evento</TableHead>
                   <TableHead>Habilitar Cobrança</TableHead>
@@ -201,9 +205,8 @@ export default function AdminDashboardPage() {
                   users.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">
-                        {u.displayName}
+                        {getFirstName(u.displayName)}
                       </TableCell>
-                      <TableCell>{u.email}</TableCell>
                       <TableCell>
                         <Badge
                           variant={u.role === "admin" ? "default" : "secondary"}
