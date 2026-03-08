@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Images, User, Download, Shield, Wallet } from 'lucide-react';
+import { Loader2, Images, User, Download, Shield, Wallet, Shirt } from 'lucide-react';
 import { Header } from '@/components/header';
 import { PwaRegister } from '@/components/pwa-register';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,18 @@ interface UserProfile {
   nextDueDate?: string;
   paymentNotificationPending?: boolean;
   paymentNotificationMessage?: string;
+  uniformeChoiceTotalAmount?: number;
+  uniformePaidAmount?: number;
+  uniformePaymentValues?: number[];
+  uniformePaymentDueDates?: string[];
+  uniformeCF2026Price?: number;
+  uniformeCF2026BretellePrice?: number;
+  uniformeCF2026ManguitoPrice?: number;
+  uniformeCF2026CasualPrice?: number;
+  uniformeChoiceQuantity?: number;
+  uniformeChoiceBretelleQuantity?: number;
+  uniformeChoiceManguitoQuantity?: number;
+  uniformeChoiceCasualQuantity?: number;
 }
 
 interface GroupData {
@@ -81,6 +93,89 @@ const GALLERY_STORAGE_LIMIT_BYTES = 512 * 1024 * 1024 * 1024;
 const formatBytesToGb = (valueInBytes: number) => {
   const gb = valueInBytes / (1024 * 1024 * 1024);
   return gb.toFixed(2);
+};
+
+const toPositiveNumber = (value: unknown) => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const computeUniformTotalFromChoice = (profile?: UserProfile) => {
+  if (!profile) return 0;
+
+  const jerseyQty = toPositiveNumber(profile.uniformeChoiceQuantity);
+  const bretelleQty = toPositiveNumber(profile.uniformeChoiceBretelleQuantity);
+  const manguitoQty = toPositiveNumber(profile.uniformeChoiceManguitoQuantity);
+  const casualQty = toPositiveNumber(profile.uniformeChoiceCasualQuantity);
+  const jerseyPrice = Number(profile.uniformeCF2026Price || 0);
+  const bretellePrice = Number(profile.uniformeCF2026BretellePrice || 0);
+  const manguitoPrice = Number(profile.uniformeCF2026ManguitoPrice || 0);
+  const casualPrice = Number(profile.uniformeCF2026CasualPrice || 0);
+
+  return (
+    jerseyQty * jerseyPrice +
+    bretelleQty * bretellePrice +
+    manguitoQty * manguitoPrice +
+    casualQty * casualPrice
+  );
+};
+
+const normalizeUniformPayments = (
+  paymentValues?: number[],
+  paymentDueDates?: string[],
+  paidAmountFallback?: number,
+) => {
+  const values = Array.isArray(paymentValues) ? paymentValues : [];
+  const dueDates = Array.isArray(paymentDueDates) ? paymentDueDates : [];
+  const maxLength = Math.max(values.length, dueDates.length);
+
+  if (maxLength === 0) {
+    const fallbackPaid = Number(paidAmountFallback || 0);
+    if (fallbackPaid > 0) {
+      return {
+        values: [fallbackPaid],
+        dueDates: [""],
+      };
+    }
+
+    return {
+      values: [] as number[],
+      dueDates: [] as string[],
+    };
+  }
+
+  const lastRelevantIndex = Array.from({ length: maxLength })
+    .map((_, index) => index)
+    .reverse()
+    .find((index) => {
+      const value = Number(values[index] || 0);
+      const dueDate = String(dueDates[index] || '').trim();
+      return value > 0 || dueDate.length > 0;
+    });
+
+  if (lastRelevantIndex === undefined) {
+    const fallbackPaid = Number(paidAmountFallback || 0);
+    if (fallbackPaid > 0) {
+      return {
+        values: [fallbackPaid],
+        dueDates: [""],
+      };
+    }
+
+    return {
+      values: [] as number[],
+      dueDates: [] as string[],
+    };
+  }
+
+  return {
+    values: Array.from({ length: lastRelevantIndex + 1 }, (_, index) =>
+      Number(values[index] || 0),
+    ),
+    dueDates: Array.from({ length: lastRelevantIndex + 1 }, (_, index) =>
+      String(dueDates[index] || ''),
+    ),
+  };
 };
 
 export default function HomePage() {
@@ -131,6 +226,30 @@ export default function HomePage() {
     totalAmount > 0
       ? Math.min((Math.max(amountPaid, 0) / totalAmount) * 100, 100)
       : 0;
+  const uniformeComputedTotal = computeUniformTotalFromChoice(userProfile);
+  const uniformeSavedTotal = Number(userProfile?.uniformeChoiceTotalAmount || 0);
+  const uniformeTotalAmount = uniformeSavedTotal > 0 ? uniformeSavedTotal : uniformeComputedTotal;
+  const normalizedUniformPayments = normalizeUniformPayments(
+    userProfile?.uniformePaymentValues,
+    userProfile?.uniformePaymentDueDates,
+    userProfile?.uniformePaidAmount,
+  );
+  const uniformePaymentValues = normalizedUniformPayments.values;
+  const uniformePaymentDueDates = normalizedUniformPayments.dueDates;
+  const uniformePaidFromInstallments = uniformePaymentValues.reduce(
+    (acc, value) => acc + Number(value || 0),
+    0,
+  );
+  const uniformePaidAmount = uniformePaidFromInstallments;
+  const uniformeDebtAmount = Math.max(uniformeTotalAmount - uniformePaidAmount, 0);
+  const uniformeProgressPercentage =
+    uniformeTotalAmount > 0
+      ? Math.min((Math.max(uniformePaidAmount, 0) / uniformeTotalAmount) * 100, 100)
+      : 0;
+  const hasUniformeFinanceSummary =
+    uniformeTotalAmount > 0 || uniformePaymentValues.length > 0 || uniformePaidAmount > 0;
+  const shouldShowUniformeFinanceSummary =
+    !isAdmin && isUniformeCardEnabled && hasUniformeFinanceSummary;
   const galleryStorageProgressPercentage = Math.min(
     (usedGalleryStorageBytes / GALLERY_STORAGE_LIMIT_BYTES) * 100,
     100,
@@ -174,6 +293,26 @@ export default function HomePage() {
       const isConfirmed = remainingPaid >= item.value;
       if (isConfirmed) {
         remainingPaid -= item.value;
+      }
+
+      return {
+        ...item,
+        status: isConfirmed ? 'Confirmado' : 'Aguardando',
+      };
+    });
+
+  let remainingUniformePaid = uniformePaidAmount;
+  const uniformeInstallmentRows = uniformePaymentValues
+    .map((value, index) => ({
+      number: index + 1,
+      dueDate: String(uniformePaymentDueDates[index] || '').trim() || '-',
+      value: Number(value || 0),
+    }))
+    .filter((item) => item.value > 0)
+    .map((item) => {
+      const isConfirmed = remainingUniformePaid >= item.value;
+      if (isConfirmed) {
+        remainingUniformePaid -= item.value;
       }
 
       return {
@@ -325,6 +464,20 @@ export default function HomePage() {
             {isAdmin && (
               <Card>
                 <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Shirt className="h-5 w-5" /> Pagamento Uniforme</CardTitle>
+                  <CardDescription>Abra a pagina de pagamento do uniforme.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/admin/pay-uniforme">Abrir pagina</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card>
+                <CardHeader>
                   <CardTitle>Uniforme</CardTitle>
                   <CardDescription>
                     Configure o card de uniforme e as opções disponíveis para os usuários.
@@ -452,6 +605,58 @@ export default function HomePage() {
                           ))}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+
+                  {shouldShowUniformeFinanceSummary && (
+                    <div className="space-y-3 pt-3 border-t">
+                      <p className="text-sm font-medium">Pagamento do Uniforme</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Progresso do Pagamento</span>
+                          <span className="text-sm font-medium">
+                            {uniformeProgressPercentage.toFixed(0)}%
+                          </span>
+                        </div>
+                        <Progress value={uniformeProgressPercentage} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total do Uniforme</span>
+                        <span className="font-medium">{formatCurrency(uniformeTotalAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Já Pago (Uniforme)</span>
+                        <span className="font-medium">{formatCurrency(uniformePaidAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Saldo Devedor (Uniforme)</span>
+                        <span className="font-medium">{formatCurrency(uniformeDebtAmount)}</span>
+                      </div>
+
+                      {uniformeInstallmentRows.length > 0 && (
+                        <div className="pt-2">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Parcela</TableHead>
+                                <TableHead>Valor</TableHead>
+                                <TableHead>Data Pag.</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {uniformeInstallmentRows.map((installment) => (
+                                <TableRow key={`uniforme-installment-${installment.number}`}>
+                                  <TableCell>{installment.number}</TableCell>
+                                  <TableCell>{formatCurrency(installment.value)}</TableCell>
+                                  <TableCell>{installment.dueDate}</TableCell>
+                                  <TableCell>{installment.status}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

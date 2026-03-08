@@ -59,6 +59,7 @@ interface UserUniformeProfile {
   uniformeChoiceBretelleQuantity?: number;
   uniformeChoiceManguitoQuantity?: number;
   uniformeChoiceCasualQuantity?: number;
+  uniformeChoiceTotalAmount?: number;
 }
 
 interface AdminUser {
@@ -362,6 +363,7 @@ export default function UniformePage() {
             Number.isFinite(parsedCasualQuantidade) && parsedCasualQuantidade > 0
               ? parsedCasualQuantidade
               : 0,
+          uniformeChoiceTotalAmount: totalGeralResumo,
           uniformeChoiceUpdatedAt: serverTimestamp(),
         },
         { merge: true },
