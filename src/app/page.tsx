@@ -9,6 +9,7 @@ import { PwaRegister } from '@/components/pwa-register';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -32,6 +33,9 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
   role?: string;
+  uniformeCF2026Enabled?: boolean;
+  uniformeCF2026Title?: string;
+  uniformeCF2026Description?: string;
   billingEnabled?: boolean;
   eventTotalAmount?: number;
   amountPaid?: number;
@@ -45,6 +49,10 @@ interface UserProfile {
 interface GroupData {
   id: string;
   name: string;
+}
+
+interface BasicUser {
+  id: string;
 }
 
 const dueMonthLabels = [
@@ -98,6 +106,18 @@ export default function HomePage() {
     [firestore, isAdmin],
   );
   const { data: groups } = useCollection<GroupData>(groupsQuery);
+  const usersQuery = useMemoFirebase(
+    () => (isAdmin ? collection(firestore, 'users') : null),
+    [firestore, isAdmin],
+  );
+  const { data: users } = useCollection<BasicUser>(usersQuery);
+  const isUniformeCardEnabled = Boolean(userProfile?.uniformeCF2026Enabled);
+  const [isUpdatingUniformeFlag, setIsUpdatingUniformeFlag] = useState(false);
+  const uniformeCardTitle =
+    String(userProfile?.uniformeCF2026Title || '').trim() || 'Uniforme CF 2026';
+  const uniformeCardDescription =
+    String(userProfile?.uniformeCF2026Description || '').trim() ||
+    'Escolha seu uniforme oficial de 2026.';
   const totalAmount = Number(userProfile?.eventTotalAmount || 0);
   const amountPaid = Number(userProfile?.amountPaid || 0);
   const paymentValues = Array.isArray(userProfile?.paymentValues)
@@ -115,6 +135,30 @@ export default function HomePage() {
     (usedGalleryStorageBytes / GALLERY_STORAGE_LIMIT_BYTES) * 100,
     100,
   );
+
+  const handleUniformeVisibilityToggle = async (checked: boolean) => {
+    if (!isAdmin || !users || users.length === 0) {
+      return;
+    }
+
+    setIsUpdatingUniformeFlag(true);
+
+    try {
+      await Promise.all(
+        users.map((item) =>
+          setDocumentNonBlocking(
+            doc(firestore, 'users', item.id),
+            {
+              uniformeCF2026Enabled: checked,
+            },
+            { merge: true },
+          ),
+        ),
+      );
+    } finally {
+      setIsUpdatingUniformeFlag(false);
+    }
+  };
 
   let remainingPaid = amountPaid;
   const installmentRows = paymentValues
@@ -278,6 +322,60 @@ export default function HomePage() {
               </Card>
             )}
 
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Uniforme</CardTitle>
+                  <CardDescription>
+                    Configure o card de uniforme e as opções disponíveis para os usuários.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                  <Button asChild variant="outline">
+                    <Link href="/uniforme">Configurar</Link>
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Exibir card para usuários</span>
+                    <Switch
+                      checked={isUniformeCardEnabled}
+                      onCheckedChange={(checked) => {
+                        void handleUniformeVisibilityToggle(Boolean(checked));
+                      }}
+                      disabled={isUpdatingUniformeFlag}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Meu Perfil</CardTitle>
+                <CardDescription>Atualize seus dados cadastrais e visualize seus grupos.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link href="/profile">Ir para Perfil</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {!isAdmin && isUniformeCardEnabled && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{uniformeCardTitle}</CardTitle>
+                  <CardDescription className="whitespace-pre-line">
+                    {uniformeCardDescription}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/uniforme">Escolher Uniforme</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
@@ -300,18 +398,6 @@ export default function HomePage() {
                   </div>
                 )}
                 <p className="text-sm text-muted-foreground">Veja e envie mídias para os grupos aos quais você pertence.</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Meu Perfil</CardTitle>
-                <CardDescription>Atualize seus dados cadastrais e visualize seus grupos.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="outline">
-                  <Link href="/profile">Ir para Perfil</Link>
-                </Button>
               </CardContent>
             </Card>
 
@@ -350,6 +436,7 @@ export default function HomePage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Parcela</TableHead>
+                            <TableHead>Valor</TableHead>
                             <TableHead>Data Pag.</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
@@ -358,6 +445,7 @@ export default function HomePage() {
                           {installmentRows.map((installment) => (
                             <TableRow key={`installment-${installment.number}`}>
                               <TableCell>{installment.number}</TableCell>
+                              <TableCell>{formatCurrency(installment.value)}</TableCell>
                               <TableCell>{installment.dueDate}</TableCell>
                               <TableCell>{installment.status}</TableCell>
                             </TableRow>
