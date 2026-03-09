@@ -10,8 +10,16 @@ import {
   useMemoFirebase,
   useCollection,
   deleteDocumentNonBlocking,
+  setDocumentNonBlocking,
 } from "@/firebase";
-import { collection, doc, orderBy, query, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +83,8 @@ interface UniformeChoiceHistoryEntry {
   manguitoQuantity?: number;
   casualSize?: string;
   casualQuantity?: number;
+  bermudaSize?: string;
+  bermudaQuantity?: number;
   totalAmount?: number;
 }
 
@@ -134,6 +144,16 @@ const formatCurrency = (value: number) =>
     currency: "BRL",
   }).format(value);
 
+const toSafePositiveNumber = (value: unknown) => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const normalizeSize = (value?: string) => {
+  const normalized = String(value || "").trim();
+  return normalized.length > 0 ? normalized : "N/A";
+};
+
 export default function AdminViewUserPage() {
   const { user: adminUser, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -191,15 +211,64 @@ export default function AdminViewUserPage() {
       await deleteDocumentNonBlocking(
         doc(firestore, "users", userId, "uniformeHistory", historyId),
       );
+
+      const remainingHistory = (uniformeHistory || []).filter(
+        (entry) => entry.id !== historyId,
+      );
+      const latestEntry = remainingHistory[0];
+
+      await setDocumentNonBlocking(
+        doc(firestore, "users", userId),
+        {
+          uniformeChoiceSize: latestEntry
+            ? normalizeSize(latestEntry.jerseySize)
+            : "N/A",
+          uniformeChoiceBretelleSize: latestEntry
+            ? normalizeSize(latestEntry.bretelleSize)
+            : "N/A",
+          uniformeChoiceManguitoSize: latestEntry
+            ? normalizeSize(latestEntry.manguitoSize)
+            : "N/A",
+          uniformeChoiceCasualSize: latestEntry
+            ? normalizeSize(latestEntry.casualSize)
+            : "N/A",
+          uniformeChoiceBermudaSize: latestEntry
+            ? normalizeSize(latestEntry.bermudaSize)
+            : "N/A",
+          uniformeChoiceQuantity: toSafePositiveNumber(
+            latestEntry?.jerseyQuantity,
+          ),
+          uniformeChoiceBretelleQuantity: toSafePositiveNumber(
+            latestEntry?.bretelleQuantity,
+          ),
+          uniformeChoiceManguitoQuantity: toSafePositiveNumber(
+            latestEntry?.manguitoQuantity,
+          ),
+          uniformeChoiceCasualQuantity: toSafePositiveNumber(
+            latestEntry?.casualQuantity,
+          ),
+          uniformeChoiceBermudaQuantity: toSafePositiveNumber(
+            latestEntry?.bermudaQuantity,
+          ),
+          uniformeChoiceTotalAmount: toSafePositiveNumber(
+            latestEntry?.totalAmount,
+          ),
+          uniformeChoiceUpdatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
       toast({
         title: "Histórico removido",
-        description: "A linha selecionada foi removida com sucesso.",
+        description:
+          "A linha selecionada foi removida e o pedido atual foi sincronizado.",
       });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Erro ao remover",
-        description: "Não foi possível remover a linha do histórico.",
+        description:
+          "Não foi possível remover a linha do histórico e sincronizar o pedido atual.",
       });
     } finally {
       setDeletingHistoryId(null);
@@ -307,6 +376,7 @@ export default function AdminViewUserPage() {
                     <TableHead>Bretelle</TableHead>
                     <TableHead>Manguito</TableHead>
                     <TableHead>Casual</TableHead>
+                    <TableHead>Bermuda</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -330,6 +400,9 @@ export default function AdminViewUserPage() {
                         <TableCell>
                           {formatHistoryItem(item.casualSize, item.casualQuantity)}
                         </TableCell>
+                        <TableCell>
+                          {formatHistoryItem(item.bermudaSize, item.bermudaQuantity)}
+                        </TableCell>
                         <TableCell>{formatCurrency(Number(item.totalAmount || 0))}</TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -346,7 +419,7 @@ export default function AdminViewUserPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-muted-foreground">
+                      <TableCell colSpan={8} className="text-muted-foreground">
                         Nenhum histórico de pedido encontrado para este usuário.
                       </TableCell>
                     </TableRow>

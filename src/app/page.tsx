@@ -649,7 +649,7 @@ export default function HomePage() {
 
                   {shouldShowUniformeFinanceSummary && (
                     <div className="space-y-3 pt-3 border-t">
-                      <p className="text-sm font-medium">Pagamento do Uniforme</p>
+                      <CardTitle>Pagamento do Uniforme</CardTitle>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">Progresso do Pagamento</span>

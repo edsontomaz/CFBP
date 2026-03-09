@@ -57,21 +57,31 @@ interface UserUniformeProfile {
   uniformeCF2026BretelleEnabled?: boolean;
   uniformeCF2026ManguitoEnabled?: boolean;
   uniformeCF2026CasualEnabled?: boolean;
+  uniformeCF2026BermudaEnabled?: boolean;
   uniformeCF2026JerseySizeGuideUrl?: string;
+  uniformeCF2026JerseyShortDescription?: string;
+  uniformeCF2026BretelleShortDescription?: string;
+  uniformeCF2026ManguitoShortDescription?: string;
+  uniformeCF2026CasualShortDescription?: string;
+  uniformeCF2026BermudaShortDescription?: string;
   uniformeCF2026Title?: string;
   uniformeCF2026Description?: string;
+  uniformeCF2026Observacoes?: string;
   uniformeCF2026Price?: number;
   uniformeCF2026BretellePrice?: number;
   uniformeCF2026ManguitoPrice?: number;
   uniformeCF2026CasualPrice?: number;
+  uniformeCF2026BermudaPrice?: number;
   uniformeChoiceSize?: string;
   uniformeChoiceBretelleSize?: string;
   uniformeChoiceManguitoSize?: string;
   uniformeChoiceCasualSize?: string;
+  uniformeChoiceBermudaSize?: string;
   uniformeChoiceQuantity?: number;
   uniformeChoiceBretelleQuantity?: number;
   uniformeChoiceManguitoQuantity?: number;
   uniformeChoiceCasualQuantity?: number;
+  uniformeChoiceBermudaQuantity?: number;
   uniformeChoiceTotalAmount?: number;
 }
 
@@ -86,6 +96,8 @@ interface UniformeChoiceHistoryEntry {
   manguitoQuantity: number;
   casualSize: string;
   casualQuantity: number;
+  bermudaSize: string;
+  bermudaQuantity: number;
   totalAmount: number;
 }
 
@@ -97,6 +109,7 @@ const JERSEY_TAMANHOS = ["N/A", "3P", "PP", "P", "M", "G", "GG", "3G", "4G"];
 const BRETELLE_TAMANHOS = ["N/A", "PP", "P", "M", "G", "GG", "3G", "4G"];
 const MANGUITO_TAMANHOS = ["N/A", "P", "M", "G"];
 const CASUAL_TAMANHOS = ["N/A", "PP", "P", "M", "G", "GG", "3G", "4G"];
+const BERMUDA_TAMANHOS = ["PP", "P", "M", "G", "GG", "3G", "4G"];
 const PIX_KEY = "bike.pontal@gmail.com.br";
 
 const formatCurrency = (value: number) =>
@@ -177,43 +190,74 @@ export default function UniformePage() {
   const [bretelleTamanho, setBretelleTamanho] = useState("");
   const [manguitoTamanho, setManguitoTamanho] = useState("");
   const [casualTamanho, setCasualTamanho] = useState("");
+  const [bermudaTamanho, setBermudaTamanho] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [bretelleQuantidade, setBretelleQuantidade] = useState("");
   const [manguitoQuantidade, setManguitoQuantidade] = useState("");
   const [casualQuantidade, setCasualQuantidade] = useState("");
+  const [bermudaQuantidade, setBermudaQuantidade] = useState("");
   const [uniformeValor, setUniformeValor] = useState("0");
   const [bretelleValor, setBretelleValor] = useState("0");
   const [manguitoValor, setManguitoValor] = useState("0");
   const [casualValor, setCasualValor] = useState("0");
+  const [bermudaValor, setBermudaValor] = useState("0");
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [uniformeTitle, setUniformeTitle] = useState("Uniforme CF 2026");
   const [uniformeDescription, setUniformeDescription] = useState(
     "Escolha seu uniforme oficial de 2026.",
   );
+  const [uniformeObservacoes, setUniformeObservacoes] = useState("");
   const [jerseySizeGuideUrl, setJerseySizeGuideUrl] = useState("");
+  const [jerseyShortDescription, setJerseyShortDescription] = useState("");
+  const [bretelleShortDescription, setBretelleShortDescription] = useState("");
+  const [manguitoShortDescription, setManguitoShortDescription] = useState("");
+  const [casualShortDescription, setCasualShortDescription] = useState("");
+  const [bermudaShortDescription, setBermudaShortDescription] = useState("");
   const [jerseyEnabled, setJerseyEnabled] = useState(true);
   const [bretelleEnabled, setBretelleEnabled] = useState(true);
   const [manguitoEnabled, setManguitoEnabled] = useState(true);
   const [casualEnabled, setCasualEnabled] = useState(true);
+  const [bermudaEnabled, setBermudaEnabled] = useState(true);
   const isJerseyVisibleForUser = userProfile?.uniformeCF2026JerseyEnabled !== false;
   const isBretelleVisibleForUser = userProfile?.uniformeCF2026BretelleEnabled !== false;
   const isManguitoVisibleForUser = userProfile?.uniformeCF2026ManguitoEnabled !== false;
   const isCasualVisibleForUser = userProfile?.uniformeCF2026CasualEnabled !== false;
+  const isBermudaVisibleForUser = userProfile?.uniformeCF2026BermudaEnabled !== false;
   const uniformeCardTitle =
     String(userProfile?.uniformeCF2026Title || "").trim() ||
     "Uniforme CF 2026";
   const uniformeCardDescription =
     String(userProfile?.uniformeCF2026Description || "").trim() ||
     "Escolha seu uniforme oficial de 2026.";
+  const jerseyShortDescriptionView = String(
+    userProfile?.uniformeCF2026JerseyShortDescription || "",
+  ).trim();
+  const bretelleShortDescriptionView = String(
+    userProfile?.uniformeCF2026BretelleShortDescription || "",
+  ).trim();
+  const manguitoShortDescriptionView = String(
+    userProfile?.uniformeCF2026ManguitoShortDescription || "",
+  ).trim();
+  const casualShortDescriptionView = String(
+    userProfile?.uniformeCF2026CasualShortDescription || "",
+  ).trim();
+  const bermudaShortDescriptionView = String(
+    userProfile?.uniformeCF2026BermudaShortDescription || "",
+  ).trim();
+  const uniformeObservacoesView = String(
+    userProfile?.uniformeCF2026Observacoes || "",
+  ).trim();
   const uniformePrice = Number(userProfile?.uniformeCF2026Price || 0);
   const uniformeBretellePrice = Number(userProfile?.uniformeCF2026BretellePrice || 0);
   const uniformeManguitoPrice = Number(userProfile?.uniformeCF2026ManguitoPrice || 0);
   const uniformeCasualPrice = Number(userProfile?.uniformeCF2026CasualPrice || 0);
+  const uniformeBermudaPrice = Number(userProfile?.uniformeCF2026BermudaPrice || 0);
   const jerseyQuantidade = Number(quantidade || 0);
   const bretelleQuantidadeNum = Number(bretelleQuantidade || 0);
   const manguitoQuantidadeNum = Number(manguitoQuantidade || 0);
   const casualQuantidadeNum = Number(casualQuantidade || 0);
+  const bermudaQuantidadeNum = Number(bermudaQuantidade || 0);
   const resumoItens = [
     {
       item: "Jersey",
@@ -243,6 +287,13 @@ export default function UniformePage() {
       valor: uniformeCasualPrice,
       enabled: isCasualVisibleForUser,
     },
+    {
+      item: "Bermuda",
+      tamanho: bermudaTamanho,
+      quantidade: bermudaQuantidadeNum,
+      valor: uniformeBermudaPrice,
+      enabled: isBermudaVisibleForUser,
+    },
   ];
   const resumoItensVisiveis = resumoItens.filter(
     (item) =>
@@ -268,6 +319,7 @@ export default function UniformePage() {
     setBretelleTamanho(userProfile.uniformeChoiceBretelleSize || "");
     setManguitoTamanho(userProfile.uniformeChoiceManguitoSize || "");
     setCasualTamanho(userProfile.uniformeChoiceCasualSize || "");
+    setBermudaTamanho(userProfile.uniformeChoiceBermudaSize || "");
     setQuantidade(
       Number(userProfile.uniformeChoiceQuantity || 0) > 0
         ? String(userProfile.uniformeChoiceQuantity)
@@ -288,10 +340,16 @@ export default function UniformePage() {
         ? String(userProfile.uniformeChoiceCasualQuantity)
         : "",
     );
+    setBermudaQuantidade(
+      Number(userProfile.uniformeChoiceBermudaQuantity || 0) > 0
+        ? String(userProfile.uniformeChoiceBermudaQuantity)
+        : "",
+    );
     setUniformeValor(String(Number(userProfile.uniformeCF2026Price || 0)));
     setBretelleValor(String(Number(userProfile.uniformeCF2026BretellePrice || 0)));
     setManguitoValor(String(Number(userProfile.uniformeCF2026ManguitoPrice || 0)));
     setCasualValor(String(Number(userProfile.uniformeCF2026CasualPrice || 0)));
+    setBermudaValor(String(Number(userProfile.uniformeCF2026BermudaPrice || 0)));
     setUniformeTitle(
       String(userProfile.uniformeCF2026Title || "").trim() ||
         "Uniforme CF 2026",
@@ -300,11 +358,28 @@ export default function UniformePage() {
       String(userProfile.uniformeCF2026Description || "").trim() ||
         "Escolha seu uniforme oficial de 2026.",
     );
+    setUniformeObservacoes(String(userProfile.uniformeCF2026Observacoes || ""));
     setJerseySizeGuideUrl(String(userProfile.uniformeCF2026JerseySizeGuideUrl || "").trim());
+    setJerseyShortDescription(
+      String(userProfile.uniformeCF2026JerseyShortDescription || "").trim(),
+    );
+    setBretelleShortDescription(
+      String(userProfile.uniformeCF2026BretelleShortDescription || "").trim(),
+    );
+    setManguitoShortDescription(
+      String(userProfile.uniformeCF2026ManguitoShortDescription || "").trim(),
+    );
+    setCasualShortDescription(
+      String(userProfile.uniformeCF2026CasualShortDescription || "").trim(),
+    );
+    setBermudaShortDescription(
+      String(userProfile.uniformeCF2026BermudaShortDescription || "").trim(),
+    );
     setJerseyEnabled(userProfile.uniformeCF2026JerseyEnabled !== false);
     setBretelleEnabled(userProfile.uniformeCF2026BretelleEnabled !== false);
     setManguitoEnabled(userProfile.uniformeCF2026ManguitoEnabled !== false);
     setCasualEnabled(userProfile.uniformeCF2026CasualEnabled !== false);
+    setBermudaEnabled(userProfile.uniformeCF2026BermudaEnabled !== false);
   }, [userProfile]);
 
   useEffect(() => {
@@ -329,6 +404,7 @@ export default function UniformePage() {
     const parsedBretelleValor = Number(bretelleValor.replace(",", "."));
     const parsedManguitoValor = Number(manguitoValor.replace(",", "."));
     const parsedCasualValor = Number(casualValor.replace(",", "."));
+    const parsedBermudaValor = Number(bermudaValor.replace(",", "."));
 
     if (
       !Number.isFinite(parsedValor) ||
@@ -338,7 +414,9 @@ export default function UniformePage() {
       !Number.isFinite(parsedManguitoValor) ||
       parsedManguitoValor < 0 ||
       !Number.isFinite(parsedCasualValor) ||
-      parsedCasualValor < 0
+      parsedCasualValor < 0 ||
+      !Number.isFinite(parsedBermudaValor) ||
+      parsedBermudaValor < 0
     ) {
       toast({
         variant: "destructive",
@@ -359,17 +437,32 @@ export default function UniformePage() {
             {
               uniformeCF2026Title: title,
               uniformeCF2026Description: description,
+              uniformeCF2026Observacoes: uniformeObservacoes.trim(),
               uniformeCF2026JerseySizeGuideUrl: jerseySizeGuideUrl.trim(),
+              uniformeCF2026JerseyShortDescription: jerseyShortDescription.trim(),
+              uniformeCF2026BretelleShortDescription:
+                bretelleShortDescription.trim(),
+              uniformeCF2026ManguitoShortDescription:
+                manguitoShortDescription.trim(),
+              uniformeCF2026CasualShortDescription: casualShortDescription.trim(),
+              uniformeCF2026BermudaShortDescription: bermudaShortDescription.trim(),
               uniformeCF2026JerseyEnabled: jerseyEnabled,
               uniformeCF2026BretelleEnabled: bretelleEnabled,
               uniformeCF2026ManguitoEnabled: manguitoEnabled,
               uniformeCF2026CasualEnabled: casualEnabled,
+              uniformeCF2026BermudaEnabled: bermudaEnabled,
               uniformeCF2026Price: parsedValor,
               uniformeCF2026BretellePrice: parsedBretelleValor,
               uniformeCF2026ManguitoPrice: parsedManguitoValor,
               uniformeCF2026CasualPrice: parsedCasualValor,
+              uniformeCF2026BermudaPrice: parsedBermudaValor,
               uniformeChoiceManguitoSize: manguitoTamanho,
               uniformeChoiceCasualSize: casualTamanho,
+              uniformeChoiceBermudaSize: bermudaTamanho,
+              uniformeChoiceBermudaQuantity:
+                Number.isFinite(Number(bermudaQuantidade)) && Number(bermudaQuantidade) > 0
+                  ? Number(bermudaQuantidade)
+                  : 0,
               updatedAt: serverTimestamp(),
             },
             { merge: true },
@@ -399,12 +492,14 @@ export default function UniformePage() {
     const parsedBretelleQuantidade = Number(bretelleQuantidade);
     const parsedManguitoQuantidade = Number(manguitoQuantidade);
     const parsedCasualQuantidade = Number(casualQuantidade);
+    const parsedBermudaQuantidade = Number(bermudaQuantidade);
 
     const itensEscolha = [
       { label: "Jersey", size: tamanho, qty: parsedQuantidade },
       { label: "Bretelle", size: bretelleTamanho, qty: parsedBretelleQuantidade },
       { label: "Manguito", size: manguitoTamanho, qty: parsedManguitoQuantidade },
       { label: "Camisa Casual", size: casualTamanho, qty: parsedCasualQuantidade },
+      { label: "Bermuda", size: bermudaTamanho, qty: parsedBermudaQuantidade },
     ].map((item) => ({
       ...item,
       hasRealSize: Boolean(item.size) && item.size !== "N/A",
@@ -456,6 +551,10 @@ export default function UniformePage() {
         Number.isFinite(parsedCasualQuantidade) && parsedCasualQuantidade > 0
           ? parsedCasualQuantidade
           : 0;
+      const safeBermudaQuantidade =
+        Number.isFinite(parsedBermudaQuantidade) && parsedBermudaQuantidade > 0
+          ? parsedBermudaQuantidade
+          : 0;
 
       const nextHistoryEntry: UniformeChoiceHistoryEntry = {
         savedAtClient: new Date().toISOString(),
@@ -467,6 +566,8 @@ export default function UniformePage() {
         manguitoQuantity: safeManguitoQuantidade,
         casualSize: casualTamanho,
         casualQuantity: safeCasualQuantidade,
+        bermudaSize: bermudaTamanho,
+        bermudaQuantity: safeBermudaQuantidade,
         totalAmount: totalGeralResumo,
       };
 
@@ -477,10 +578,12 @@ export default function UniformePage() {
           uniformeChoiceBretelleSize: bretelleTamanho,
           uniformeChoiceManguitoSize: manguitoTamanho,
           uniformeChoiceCasualSize: casualTamanho,
+          uniformeChoiceBermudaSize: bermudaTamanho,
           uniformeChoiceQuantity: safeQuantidade,
           uniformeChoiceBretelleQuantity: safeBretelleQuantidade,
           uniformeChoiceManguitoQuantity: safeManguitoQuantidade,
           uniformeChoiceCasualQuantity: safeCasualQuantidade,
+          uniformeChoiceBermudaQuantity: safeBermudaQuantidade,
           uniformeChoiceTotalAmount: totalGeralResumo,
           uniformeChoiceUpdatedAt: serverTimestamp(),
         },
@@ -530,6 +633,10 @@ export default function UniformePage() {
     setCasualQuantidade(value.replace(/\D/g, ""));
   };
 
+  const handleBermudaQuantidadeChange = (value: string) => {
+    setBermudaQuantidade(value.replace(/\D/g, ""));
+  };
+
   const handleUniformeValorChange = (value: string) => {
     const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
     const [integerPart, ...decimalParts] = normalized.split(".");
@@ -568,6 +675,29 @@ export default function UniformePage() {
         ? `${integerPart}.${decimalParts.join("")}`
         : integerPart;
     setCasualValor(nextValue);
+  };
+
+  const handleBermudaValorChange = (value: string) => {
+    const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
+    const [integerPart, ...decimalParts] = normalized.split(".");
+    const nextValue =
+      decimalParts.length > 0
+        ? `${integerPart}.${decimalParts.join("")}`
+        : integerPart;
+    setBermudaValor(nextValue);
+  };
+
+  const handleClearOrder = () => {
+    setTamanho("");
+    setBretelleTamanho("");
+    setManguitoTamanho("");
+    setCasualTamanho("");
+    setBermudaTamanho("");
+    setQuantidade("");
+    setBretelleQuantidade("");
+    setManguitoQuantidade("");
+    setCasualQuantidade("");
+    setBermudaQuantidade("");
   };
 
   const handleCopyPix = async () => {
@@ -672,6 +802,18 @@ export default function UniformePage() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Descrição breve</p>
+                          <Input
+                            value={jerseyShortDescription}
+                            onChange={(event) =>
+                              setJerseyShortDescription(event.target.value)
+                            }
+                            placeholder="Descrição breve da Jersey"
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Jersey</p>
                           <Select value={tamanho} onValueChange={setTamanho}>
                             <SelectTrigger>
@@ -759,6 +901,18 @@ export default function UniformePage() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Descrição breve</p>
+                          <Input
+                            value={bretelleShortDescription}
+                            onChange={(event) =>
+                              setBretelleShortDescription(event.target.value)
+                            }
+                            placeholder="Descrição breve do Bretelle"
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
                           <Select
                             value={bretelleTamanho}
@@ -841,6 +995,18 @@ export default function UniformePage() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Descrição breve</p>
+                          <Input
+                            value={manguitoShortDescription}
+                            onChange={(event) =>
+                              setManguitoShortDescription(event.target.value)
+                            }
+                            placeholder="Descrição breve do Manguito"
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
                           <Select
                             value={manguitoTamanho}
@@ -921,6 +1087,18 @@ export default function UniformePage() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Descrição breve</p>
+                          <Input
+                            value={casualShortDescription}
+                            onChange={(event) =>
+                              setCasualShortDescription(event.target.value)
+                            }
+                            placeholder="Descrição breve da Camisa Casual"
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
                           <Select
                             value={casualTamanho}
@@ -973,6 +1151,108 @@ export default function UniformePage() {
                   </div>
                   )}
 
+                  <div className="space-y-3 rounded-md border p-3">
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Bermuda.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
+                      >
+                        <Image
+                          src="/Bermuda.jpeg"
+                          alt="Bermuda CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
+                        />
+                      </a>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">Exibir para usuário</p>
+                          <Switch
+                            checked={bermudaEnabled}
+                            onCheckedChange={(checked) =>
+                              setBermudaEnabled(Boolean(checked))
+                            }
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Descrição breve</p>
+                          <Input
+                            value={bermudaShortDescription}
+                            onChange={(event) =>
+                              setBermudaShortDescription(event.target.value)
+                            }
+                            placeholder="Descrição breve da Bermuda"
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho da Bermuda</p>
+                          <Select
+                            value={bermudaTamanho}
+                            onValueChange={setBermudaTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BERMUDA_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bermudaQuantidade}
+                              onChange={(event) =>
+                                handleBermudaQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor (R$)</p>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={bermudaValor}
+                              onChange={(event) =>
+                                handleBermudaValorChange(event.target.value)
+                              }
+                              placeholder="Ex.: 99.90"
+                              disabled={isSavingConfig}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Observações</p>
+                    <Textarea
+                      rows={4}
+                      value={uniformeObservacoes}
+                      onChange={(event) => setUniformeObservacoes(event.target.value)}
+                      placeholder="Digite observações gerais sobre o uniforme"
+                      disabled={isSavingConfig}
+                    />
+                  </div>
+
                   <Button onClick={handleSaveConfig} disabled={isSavingConfig}>
                     {isSavingConfig ? "Salvando..." : "Salvar Configuração"}
                   </Button>
@@ -1002,6 +1282,11 @@ export default function UniformePage() {
                       </a>
 
                       <div className="space-y-4">
+                        {jerseyShortDescriptionView && (
+                          <p className="text-sm text-muted-foreground">
+                            {jerseyShortDescriptionView}
+                          </p>
+                        )}
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Jersey</p>
                           <Select value={tamanho} onValueChange={setTamanho}>
@@ -1081,6 +1366,11 @@ export default function UniformePage() {
                       </a>
 
                       <div className="space-y-4">
+                        {bretelleShortDescriptionView && (
+                          <p className="text-sm text-muted-foreground">
+                            {bretelleShortDescriptionView}
+                          </p>
+                        )}
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
                           <Select
@@ -1150,6 +1440,11 @@ export default function UniformePage() {
                       </a>
 
                       <div className="space-y-4">
+                        {manguitoShortDescriptionView && (
+                          <p className="text-sm text-muted-foreground">
+                            {manguitoShortDescriptionView}
+                          </p>
+                        )}
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
                           <Select
@@ -1219,6 +1514,11 @@ export default function UniformePage() {
                       </a>
 
                       <div className="space-y-4">
+                        {casualShortDescriptionView && (
+                          <p className="text-sm text-muted-foreground">
+                            {casualShortDescriptionView}
+                          </p>
+                        )}
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
                           <Select
@@ -1257,6 +1557,80 @@ export default function UniformePage() {
                             <p className="text-sm text-muted-foreground">Valor</p>
                             <Input
                               value={formatCurrency(uniformeCasualPrice)}
+                              readOnly
+                              aria-readonly="true"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`space-y-3 rounded-md border p-3 ${
+                      isBermudaVisibleForUser ? "" : "hidden"
+                    }`}
+                  >
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Bermuda.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
+                      >
+                        <Image
+                          src="/Bermuda.jpeg"
+                          alt="Bermuda CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
+                        />
+                      </a>
+
+                      <div className="space-y-4">
+                        {bermudaShortDescriptionView && (
+                          <p className="text-sm text-muted-foreground">
+                            {bermudaShortDescriptionView}
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho da Bermuda</p>
+                          <Select
+                            value={bermudaTamanho}
+                            onValueChange={setBermudaTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BERMUDA_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bermudaQuantidade}
+                              onChange={(event) =>
+                                handleBermudaQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor</p>
+                            <Input
+                              value={formatCurrency(uniformeBermudaPrice)}
                               readOnly
                               aria-readonly="true"
                             />
@@ -1315,6 +1689,42 @@ export default function UniformePage() {
                   </div>
 
                   <div className="space-y-3 rounded-md border p-3">
+                    <p className="text-sm font-medium">Observações</p>
+                    <p className="whitespace-pre-line text-sm text-muted-foreground">
+                      {uniformeObservacoesView || "-"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "Salvando..." : "Salvar Pedido"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleClearOrder}
+                        disabled={isSaving}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleCopyPix()}
+                      className="ml-auto"
+                    >
+                      Copiar Pix
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3 rounded-md border p-3">
                     <p className="text-sm font-medium">Histórico de Pedidos</p>
                     <Table>
                       <TableHeader>
@@ -1324,70 +1734,64 @@ export default function UniformePage() {
                           <TableHead>Bretelle</TableHead>
                           <TableHead>Manguito</TableHead>
                           <TableHead>Casual</TableHead>
+                          <TableHead>Bermuda</TableHead>
                           <TableHead>Total</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {pedidoHistory && pedidoHistory.length > 0 ? (
-                            pedidoHistory.map((historyItem) => (
-                              <TableRow key={historyItem.id}>
-                                <TableCell>
-                                  {formatHistoryDate(
-                                    historyItem.createdAt,
-                                    historyItem.savedAtClient,
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatHistoryItem(
-                                    historyItem.jerseySize,
-                                    Number(historyItem.jerseyQuantity || 0),
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatHistoryItem(
-                                    historyItem.bretelleSize,
-                                    Number(historyItem.bretelleQuantity || 0),
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatHistoryItem(
-                                    historyItem.manguitoSize,
-                                    Number(historyItem.manguitoQuantity || 0),
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatHistoryItem(
-                                    historyItem.casualSize,
-                                    Number(historyItem.casualQuantity || 0),
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(Number(historyItem.totalAmount || 0))}
-                                </TableCell>
-                              </TableRow>
-                            ))
+                          pedidoHistory.map((historyItem) => (
+                            <TableRow key={historyItem.id}>
+                              <TableCell>
+                                {formatHistoryDate(
+                                  historyItem.createdAt,
+                                  historyItem.savedAtClient,
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatHistoryItem(
+                                  historyItem.jerseySize,
+                                  Number(historyItem.jerseyQuantity || 0),
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatHistoryItem(
+                                  historyItem.bretelleSize,
+                                  Number(historyItem.bretelleQuantity || 0),
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatHistoryItem(
+                                  historyItem.manguitoSize,
+                                  Number(historyItem.manguitoQuantity || 0),
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatHistoryItem(
+                                  historyItem.casualSize,
+                                  Number(historyItem.casualQuantity || 0),
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatHistoryItem(
+                                  historyItem.bermudaSize,
+                                  Number(historyItem.bermudaQuantity || 0),
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {formatCurrency(Number(historyItem.totalAmount || 0))}
+                              </TableCell>
+                            </TableRow>
+                          ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-muted-foreground">
+                            <TableCell colSpan={7} className="text-muted-foreground">
                               Nenhum pedido salvo ainda.
                             </TableCell>
                           </TableRow>
                         )}
                       </TableBody>
                     </Table>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void handleCopyPix()}
-                    >
-                      Copiar Pix
-                    </Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
-                      {isSaving ? "Salvando..." : "Salvar Pedido"}
-                    </Button>
                   </div>
                 </>
               )}

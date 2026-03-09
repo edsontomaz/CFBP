@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 import { Header } from "@/components/header";
 import {
   useUser,
@@ -41,14 +42,17 @@ interface UniformeChoiceUser {
   uniformeChoiceBretelleSize?: string;
   uniformeChoiceManguitoSize?: string;
   uniformeChoiceCasualSize?: string;
+  uniformeChoiceBermudaSize?: string;
   uniformeChoiceQuantity?: number;
   uniformeChoiceBretelleQuantity?: number;
   uniformeChoiceManguitoQuantity?: number;
   uniformeChoiceCasualQuantity?: number;
+  uniformeChoiceBermudaQuantity?: number;
   uniformeCF2026Price?: number;
   uniformeCF2026BretellePrice?: number;
   uniformeCF2026ManguitoPrice?: number;
   uniformeCF2026CasualPrice?: number;
+  uniformeCF2026BermudaPrice?: number;
   uniformeChoiceTotalAmount?: number;
   uniformePaidAmount?: number;
   uniformePaymentConfirmed?: boolean;
@@ -166,16 +170,19 @@ const computeChoiceTotal = (user: UniformeChoiceUser) => {
   const bretelleQty = toPositiveNumber(user.uniformeChoiceBretelleQuantity);
   const manguitoQty = toPositiveNumber(user.uniformeChoiceManguitoQuantity);
   const casualQty = toPositiveNumber(user.uniformeChoiceCasualQuantity);
+  const bermudaQty = toPositiveNumber(user.uniformeChoiceBermudaQuantity);
   const jerseyPrice = Number(user.uniformeCF2026Price || 0);
   const bretellePrice = Number(user.uniformeCF2026BretellePrice || 0);
   const manguitoPrice = Number(user.uniformeCF2026ManguitoPrice || 0);
   const casualPrice = Number(user.uniformeCF2026CasualPrice || 0);
+  const bermudaPrice = Number(user.uniformeCF2026BermudaPrice || 0);
 
   return (
     jerseyQty * jerseyPrice +
     bretelleQty * bretellePrice +
     manguitoQty * manguitoPrice +
-    casualQty * casualPrice
+    casualQty * casualPrice +
+    bermudaQty * bermudaPrice
   );
 };
 
@@ -255,6 +262,54 @@ export default function AdminPayUniformePage() {
   }, [users]);
 
   const totalGeral = usersWithChoice.reduce((acc, item) => acc + item.total, 0);
+
+  const handleExportOrders = () => {
+    const rows = usersWithChoice.map((item) => {
+      const paymentValues = paymentsByUser[item.id] || [];
+      const currentPaid = paymentValues.reduce(
+        (acc, value) => acc + Number(value || 0),
+        0,
+      );
+      const remaining = Math.max(item.total - currentPaid, 0);
+      const progressPercentage =
+        item.total > 0
+          ? Math.min((Math.max(currentPaid, 0) / item.total) * 100, 100)
+          : 0;
+      const paymentStatus =
+        progressPercentage >= 100
+          ? "Pago"
+          : progressPercentage > 0
+            ? "Parcial"
+            : "Pendente";
+
+      return {
+        Usuario: getFirstName(item.displayName),
+        "Jersey Tamanho": String(item.uniformeChoiceSize || "").trim() || "-",
+        "Jersey Quantidade": toPositiveNumber(item.uniformeChoiceQuantity),
+        "Bretelle Tamanho":
+          String(item.uniformeChoiceBretelleSize || "").trim() || "-",
+        "Bretelle Quantidade": toPositiveNumber(item.uniformeChoiceBretelleQuantity),
+        "Manguito Tamanho":
+          String(item.uniformeChoiceManguitoSize || "").trim() || "-",
+        "Manguito Quantidade": toPositiveNumber(item.uniformeChoiceManguitoQuantity),
+        "Casual Tamanho":
+          String(item.uniformeChoiceCasualSize || "").trim() || "-",
+        "Casual Quantidade": toPositiveNumber(item.uniformeChoiceCasualQuantity),
+        "Bermuda Tamanho":
+          String(item.uniformeChoiceBermudaSize || "").trim() || "-",
+        "Bermuda Quantidade": toPositiveNumber(item.uniformeChoiceBermudaQuantity),
+        Pago: currentPaid,
+        Devedor: remaining,
+        Status: paymentStatus,
+        Total: item.total,
+      };
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Pedidos Uniforme");
+    XLSX.writeFile(workbook, "pay-uniforme-pedidos.xlsx");
+  };
 
   const handlePaymentChange = (
     userId: string,
@@ -377,12 +432,20 @@ export default function AdminPayUniformePage() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="container mx-auto flex-1 p-4 md:p-8">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Voltar
             </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportOrders}
+            disabled={usersWithChoice.length === 0}
+          >
+            Exportar Pedidos
           </Button>
         </div>
 
@@ -405,6 +468,7 @@ export default function AdminPayUniformePage() {
                   <TableHead>Bretelle</TableHead>
                   <TableHead>Manguito</TableHead>
                   <TableHead>Casual</TableHead>
+                  <TableHead>Bermuda</TableHead>
                   <TableHead>Pago</TableHead>
                   <TableHead>Devedor</TableHead>
                   <TableHead>Status</TableHead>
@@ -467,6 +531,12 @@ export default function AdminPayUniformePage() {
                             item.uniformeChoiceCasualQuantity,
                           )}
                         </TableCell>
+                        <TableCell>
+                          {formatChoice(
+                            item.uniformeChoiceBermudaSize,
+                            item.uniformeChoiceBermudaQuantity,
+                          )}
+                        </TableCell>
                         <TableCell>{formatCurrency(currentPaid)}</TableCell>
                         <TableCell>{formatCurrency(remaining)}</TableCell>
                         <TableCell>
@@ -484,7 +554,7 @@ export default function AdminPayUniformePage() {
                       </TableRow>,
 
                     <TableRow key={`${item.id}-payments`}>
-                        <TableCell colSpan={9}>
+                      <TableCell colSpan={10}>
                           <div className="space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
                               <Button type="button" size="sm" variant="outline" asChild>
@@ -635,7 +705,7 @@ export default function AdminPayUniformePage() {
 
                 {usersWithChoice.length > 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="font-semibold">
+                    <TableCell colSpan={9} className="font-semibold">
                       Total Geral
                     </TableCell>
                     <TableCell className="text-right font-semibold">
@@ -646,7 +716,7 @@ export default function AdminPayUniformePage() {
 
                 {usersWithChoice.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-muted-foreground">
+                    <TableCell colSpan={10} className="text-muted-foreground">
                       Nenhum usuario com escolha de uniforme salva ainda.
                     </TableCell>
                   </TableRow>
