@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   useUser,
   useFirestore,
@@ -39,12 +40,24 @@ import {
   setDocumentNonBlocking,
   useCollection,
 } from "@/firebase";
-import { collection, doc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserUniformeProfile {
   role?: string;
   uniformeCF2026Enabled?: boolean;
+  uniformeCF2026JerseyEnabled?: boolean;
+  uniformeCF2026BretelleEnabled?: boolean;
+  uniformeCF2026ManguitoEnabled?: boolean;
+  uniformeCF2026CasualEnabled?: boolean;
+  uniformeCF2026JerseySizeGuideUrl?: string;
   uniformeCF2026Title?: string;
   uniformeCF2026Description?: string;
   uniformeCF2026Price?: number;
@@ -62,6 +75,20 @@ interface UserUniformeProfile {
   uniformeChoiceTotalAmount?: number;
 }
 
+interface UniformeChoiceHistoryEntry {
+  createdAt?: Timestamp;
+  savedAtClient?: string;
+  jerseySize: string;
+  jerseyQuantity: number;
+  bretelleSize: string;
+  bretelleQuantity: number;
+  manguitoSize: string;
+  manguitoQuantity: number;
+  casualSize: string;
+  casualQuantity: number;
+  totalAmount: number;
+}
+
 interface AdminUser {
   id: string;
 }
@@ -77,6 +104,41 @@ const formatCurrency = (value: number) =>
     style: "currency",
     currency: "BRL",
   }).format(value);
+
+const formatHistoryDate = (value?: Timestamp, fallback?: string) => {
+  if (value instanceof Timestamp) {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(value.toDate());
+  }
+
+  if (!fallback) return "-";
+
+  const parsedDate = new Date(fallback);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsedDate);
+};
+
+const formatHistoryItem = (size: string, quantity: number) => {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return "-";
+  }
+
+  return `${size || "-"} / ${quantity}`;
+};
 
 export default function UniformePage() {
   const { user, isUserLoading } = useUser();
@@ -98,6 +160,18 @@ export default function UniformePage() {
     [firestore, isAdmin],
   );
   const { data: users } = useCollection<AdminUser>(usersQuery);
+  const historyCollectionRef = useMemoFirebase(
+    () => (user ? collection(firestore, "users", user.uid, "uniformeHistory") : null),
+    [firestore, user],
+  );
+  const historyQuery = useMemoFirebase(
+    () =>
+      historyCollectionRef
+        ? query(historyCollectionRef, orderBy("createdAt", "desc"))
+        : null,
+    [historyCollectionRef],
+  );
+  const { data: pedidoHistory } = useCollection<UniformeChoiceHistoryEntry>(historyQuery);
 
   const [tamanho, setTamanho] = useState("");
   const [bretelleTamanho, setBretelleTamanho] = useState("");
@@ -117,6 +191,15 @@ export default function UniformePage() {
   const [uniformeDescription, setUniformeDescription] = useState(
     "Escolha seu uniforme oficial de 2026.",
   );
+  const [jerseySizeGuideUrl, setJerseySizeGuideUrl] = useState("");
+  const [jerseyEnabled, setJerseyEnabled] = useState(true);
+  const [bretelleEnabled, setBretelleEnabled] = useState(true);
+  const [manguitoEnabled, setManguitoEnabled] = useState(true);
+  const [casualEnabled, setCasualEnabled] = useState(true);
+  const isJerseyVisibleForUser = userProfile?.uniformeCF2026JerseyEnabled !== false;
+  const isBretelleVisibleForUser = userProfile?.uniformeCF2026BretelleEnabled !== false;
+  const isManguitoVisibleForUser = userProfile?.uniformeCF2026ManguitoEnabled !== false;
+  const isCasualVisibleForUser = userProfile?.uniformeCF2026CasualEnabled !== false;
   const uniformeCardTitle =
     String(userProfile?.uniformeCF2026Title || "").trim() ||
     "Uniforme CF 2026";
@@ -137,28 +220,35 @@ export default function UniformePage() {
       tamanho: tamanho,
       quantidade: jerseyQuantidade,
       valor: uniformePrice,
+      enabled: isJerseyVisibleForUser,
     },
     {
       item: "Bretelle",
       tamanho: bretelleTamanho,
       quantidade: bretelleQuantidadeNum,
       valor: uniformeBretellePrice,
+      enabled: isBretelleVisibleForUser,
     },
     {
       item: "Manguito",
       tamanho: manguitoTamanho,
       quantidade: manguitoQuantidadeNum,
       valor: uniformeManguitoPrice,
+      enabled: isManguitoVisibleForUser,
     },
     {
       item: "Camisa Casual",
       tamanho: casualTamanho,
       quantidade: casualQuantidadeNum,
       valor: uniformeCasualPrice,
+      enabled: isCasualVisibleForUser,
     },
   ];
   const resumoItensVisiveis = resumoItens.filter(
-    (item) => Number.isFinite(item.quantidade) && item.quantidade > 0,
+    (item) =>
+      Number.isFinite(item.quantidade) &&
+      item.quantidade > 0 &&
+      (isAdmin || item.enabled),
   );
   const totalGeralResumo = resumoItensVisiveis.reduce(
     (total, item) => total + item.quantidade * item.valor,
@@ -210,6 +300,11 @@ export default function UniformePage() {
       String(userProfile.uniformeCF2026Description || "").trim() ||
         "Escolha seu uniforme oficial de 2026.",
     );
+    setJerseySizeGuideUrl(String(userProfile.uniformeCF2026JerseySizeGuideUrl || "").trim());
+    setJerseyEnabled(userProfile.uniformeCF2026JerseyEnabled !== false);
+    setBretelleEnabled(userProfile.uniformeCF2026BretelleEnabled !== false);
+    setManguitoEnabled(userProfile.uniformeCF2026ManguitoEnabled !== false);
+    setCasualEnabled(userProfile.uniformeCF2026CasualEnabled !== false);
   }, [userProfile]);
 
   useEffect(() => {
@@ -264,6 +359,11 @@ export default function UniformePage() {
             {
               uniformeCF2026Title: title,
               uniformeCF2026Description: description,
+              uniformeCF2026JerseySizeGuideUrl: jerseySizeGuideUrl.trim(),
+              uniformeCF2026JerseyEnabled: jerseyEnabled,
+              uniformeCF2026BretelleEnabled: bretelleEnabled,
+              uniformeCF2026ManguitoEnabled: manguitoEnabled,
+              uniformeCF2026CasualEnabled: casualEnabled,
               uniformeCF2026Price: parsedValor,
               uniformeCF2026BretellePrice: parsedBretelleValor,
               uniformeCF2026ManguitoPrice: parsedManguitoValor,
@@ -340,6 +440,36 @@ export default function UniformePage() {
     try {
       setIsSaving(true);
 
+      const safeQuantidade =
+        Number.isFinite(parsedQuantidade) && parsedQuantidade > 0
+          ? parsedQuantidade
+          : 0;
+      const safeBretelleQuantidade =
+        Number.isFinite(parsedBretelleQuantidade) && parsedBretelleQuantidade > 0
+          ? parsedBretelleQuantidade
+          : 0;
+      const safeManguitoQuantidade =
+        Number.isFinite(parsedManguitoQuantidade) && parsedManguitoQuantidade > 0
+          ? parsedManguitoQuantidade
+          : 0;
+      const safeCasualQuantidade =
+        Number.isFinite(parsedCasualQuantidade) && parsedCasualQuantidade > 0
+          ? parsedCasualQuantidade
+          : 0;
+
+      const nextHistoryEntry: UniformeChoiceHistoryEntry = {
+        savedAtClient: new Date().toISOString(),
+        jerseySize: tamanho,
+        jerseyQuantity: safeQuantidade,
+        bretelleSize: bretelleTamanho,
+        bretelleQuantity: safeBretelleQuantidade,
+        manguitoSize: manguitoTamanho,
+        manguitoQuantity: safeManguitoQuantidade,
+        casualSize: casualTamanho,
+        casualQuantity: safeCasualQuantidade,
+        totalAmount: totalGeralResumo,
+      };
+
       await setDocumentNonBlocking(
         userDocRef,
         {
@@ -347,27 +477,27 @@ export default function UniformePage() {
           uniformeChoiceBretelleSize: bretelleTamanho,
           uniformeChoiceManguitoSize: manguitoTamanho,
           uniformeChoiceCasualSize: casualTamanho,
-          uniformeChoiceQuantity:
-            Number.isFinite(parsedQuantidade) && parsedQuantidade > 0
-              ? parsedQuantidade
-              : 0,
-          uniformeChoiceBretelleQuantity:
-            Number.isFinite(parsedBretelleQuantidade) && parsedBretelleQuantidade > 0
-              ? parsedBretelleQuantidade
-              : 0,
-          uniformeChoiceManguitoQuantity:
-            Number.isFinite(parsedManguitoQuantidade) && parsedManguitoQuantidade > 0
-              ? parsedManguitoQuantidade
-              : 0,
-          uniformeChoiceCasualQuantity:
-            Number.isFinite(parsedCasualQuantidade) && parsedCasualQuantidade > 0
-              ? parsedCasualQuantidade
-              : 0,
+          uniformeChoiceQuantity: safeQuantidade,
+          uniformeChoiceBretelleQuantity: safeBretelleQuantidade,
+          uniformeChoiceManguitoQuantity: safeManguitoQuantidade,
+          uniformeChoiceCasualQuantity: safeCasualQuantidade,
           uniformeChoiceTotalAmount: totalGeralResumo,
           uniformeChoiceUpdatedAt: serverTimestamp(),
         },
         { merge: true },
       );
+
+      if (historyCollectionRef) {
+        const historyRef = doc(historyCollectionRef);
+        await setDocumentNonBlocking(
+          historyRef,
+          {
+            ...nextHistoryEntry,
+            createdAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
 
       toast({
         title: "Uniforme salvo",
@@ -513,13 +643,14 @@ export default function UniformePage() {
                     />
                   </div>
 
+                  {true && (
                   <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/jersey.jpeg"
                         target="_blank"
                         rel="noreferrer"
-                        className="block overflow-hidden rounded-md border"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
                         <Image
                           src="/jersey.jpeg"
@@ -532,6 +663,14 @@ export default function UniformePage() {
                       </a>
 
                       <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">Exibir para usuário</p>
+                          <Switch
+                            checked={jerseyEnabled}
+                            onCheckedChange={(checked) => setJerseyEnabled(Boolean(checked))}
+                            disabled={isSavingConfig}
+                          />
+                        </div>
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Jersey</p>
                           <Select value={tamanho} onValueChange={setTamanho}>
@@ -546,6 +685,18 @@ export default function UniformePage() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Veja o seu Tamanho</p>
+                          <Input
+                            type="text"
+                            inputMode="url"
+                            placeholder="https://..."
+                            value={jerseySizeGuideUrl}
+                            onChange={(event) => setJerseySizeGuideUrl(event.target.value)}
+                            disabled={isSavingConfig}
+                          />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -576,204 +727,251 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {true && (
                   <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Bretelle.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Bretelle.jpeg"
-                        alt="Bretelle CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
-                      <Select
-                        value={bretelleTamanho}
-                        onValueChange={setBretelleTamanho}
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Bretelle.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BRETELLE_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={bretelleQuantidade}
-                          onChange={(event) =>
-                            handleBretelleQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Bretelle.jpeg"
+                          alt="Bretelle CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor (R$)</p>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={bretelleValor}
-                          onChange={(event) =>
-                            handleBretelleValorChange(event.target.value)
-                          }
-                          placeholder="Ex.: 149.90"
-                          disabled={isSavingConfig}
-                        />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">Exibir para usuário</p>
+                          <Switch
+                            checked={bretelleEnabled}
+                            onCheckedChange={(checked) =>
+                              setBretelleEnabled(Boolean(checked))
+                            }
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
+                          <Select
+                            value={bretelleTamanho}
+                            onValueChange={setBretelleTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BRETELLE_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bretelleQuantidade}
+                              onChange={(event) =>
+                                handleBretelleQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor (R$)</p>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={bretelleValor}
+                              onChange={(event) =>
+                                handleBretelleValorChange(event.target.value)
+                              }
+                              placeholder="Ex.: 149.90"
+                              disabled={isSavingConfig}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {true && (
                   <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Manguito.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Manguito.jpeg"
-                        alt="Manguito CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
-                      <Select
-                        value={manguitoTamanho}
-                        onValueChange={setManguitoTamanho}
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Manguito.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MANGUITO_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={manguitoQuantidade}
-                          onChange={(event) =>
-                            handleManguitoQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Manguito.jpeg"
+                          alt="Manguito CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor (R$)</p>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={manguitoValor}
-                          onChange={(event) =>
-                            handleManguitoValorChange(event.target.value)
-                          }
-                          placeholder="Ex.: 79.90"
-                          disabled={isSavingConfig}
-                        />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">Exibir para usuário</p>
+                          <Switch
+                            checked={manguitoEnabled}
+                            onCheckedChange={(checked) =>
+                              setManguitoEnabled(Boolean(checked))
+                            }
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
+                          <Select
+                            value={manguitoTamanho}
+                            onValueChange={setManguitoTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MANGUITO_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={manguitoQuantidade}
+                              onChange={(event) =>
+                                handleManguitoQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor (R$)</p>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={manguitoValor}
+                              onChange={(event) =>
+                                handleManguitoValorChange(event.target.value)
+                              }
+                              placeholder="Ex.: 79.90"
+                              disabled={isSavingConfig}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {true && (
                   <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Casual.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Casual.jpeg"
-                        alt="Camisa Casual CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
-                      <Select
-                        value={casualTamanho}
-                        onValueChange={setCasualTamanho}
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Casual.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CASUAL_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={casualQuantidade}
-                          onChange={(event) =>
-                            handleCasualQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Casual.jpeg"
+                          alt="Camisa Casual CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor (R$)</p>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={casualValor}
-                          onChange={(event) =>
-                            handleCasualValorChange(event.target.value)
-                          }
-                          placeholder="Ex.: 99.90"
-                          disabled={isSavingConfig}
-                        />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">Exibir para usuário</p>
+                          <Switch
+                            checked={casualEnabled}
+                            onCheckedChange={(checked) => setCasualEnabled(Boolean(checked))}
+                            disabled={isSavingConfig}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
+                          <Select
+                            value={casualTamanho}
+                            onValueChange={setCasualTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CASUAL_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={casualQuantidade}
+                              onChange={(event) =>
+                                handleCasualQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor (R$)</p>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={casualValor}
+                              onChange={(event) =>
+                                handleCasualValorChange(event.target.value)
+                              }
+                              placeholder="Ex.: 99.90"
+                              disabled={isSavingConfig}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <Button onClick={handleSaveConfig} disabled={isSavingConfig}>
                     {isSavingConfig ? "Salvando..." : "Salvar Configuração"}
@@ -781,13 +979,17 @@ export default function UniformePage() {
                 </>
               ) : (
                 <>
-                  <div className="space-y-3 rounded-md border p-3">
+                  <div
+                    className={`space-y-3 rounded-md border p-3 ${
+                      isJerseyVisibleForUser ? "" : "hidden"
+                    }`}
+                  >
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/jersey.jpeg"
                         target="_blank"
                         rel="noreferrer"
-                        className="block overflow-hidden rounded-md border"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
                         <Image
                           src="/jersey.jpeg"
@@ -816,6 +1018,21 @@ export default function UniformePage() {
                           </Select>
                         </div>
 
+                        <div className="space-y-1">
+                          {jerseySizeGuideUrl ? (
+                            <a
+                              href={jerseySizeGuideUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-primary underline"
+                            >
+                              Veja o seu Tamanho
+                            </a>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Veja o seu Tamanho</p>
+                          )}
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
                             <p className="text-sm text-muted-foreground">Quantidade</p>
@@ -842,185 +1059,209 @@ export default function UniformePage() {
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Bretelle.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Bretelle.jpeg"
-                        alt="Bretelle CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
-                      <Select
-                        value={bretelleTamanho}
-                        onValueChange={setBretelleTamanho}
+                  <div
+                    className={`space-y-3 rounded-md border p-3 ${
+                      isBretelleVisibleForUser ? "" : "hidden"
+                    }`}
+                  >
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Bretelle.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BRETELLE_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={bretelleQuantidade}
-                          onChange={(event) =>
-                            handleBretelleQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Bretelle.jpeg"
+                          alt="Bretelle CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor</p>
-                        <Input
-                          value={formatCurrency(uniformeBretellePrice)}
-                          readOnly
-                          aria-readonly="true"
-                        />
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho do Bretelle</p>
+                          <Select
+                            value={bretelleTamanho}
+                            onValueChange={setBretelleTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BRETELLE_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bretelleQuantidade}
+                              onChange={(event) =>
+                                handleBretelleQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor</p>
+                            <Input
+                              value={formatCurrency(uniformeBretellePrice)}
+                              readOnly
+                              aria-readonly="true"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Manguito.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Manguito.jpeg"
-                        alt="Manguito CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
-                      <Select
-                        value={manguitoTamanho}
-                        onValueChange={setManguitoTamanho}
+                  <div
+                    className={`space-y-3 rounded-md border p-3 ${
+                      isManguitoVisibleForUser ? "" : "hidden"
+                    }`}
+                  >
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Manguito.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MANGUITO_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={manguitoQuantidade}
-                          onChange={(event) =>
-                            handleManguitoQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Manguito.jpeg"
+                          alt="Manguito CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor</p>
-                        <Input
-                          value={formatCurrency(uniformeManguitoPrice)}
-                          readOnly
-                          aria-readonly="true"
-                        />
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho do Manguito</p>
+                          <Select
+                            value={manguitoTamanho}
+                            onValueChange={setManguitoTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MANGUITO_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={manguitoQuantidade}
+                              onChange={(event) =>
+                                handleManguitoQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor</p>
+                            <Input
+                              value={formatCurrency(uniformeManguitoPrice)}
+                              readOnly
+                              aria-readonly="true"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-md border p-3">
-                    <a
-                      href="/Casual.jpeg"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-md border"
-                    >
-                      <Image
-                        src="/Casual.jpeg"
-                        alt="Camisa Casual CF 2026"
-                        width={320}
-                        height={420}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
-                      <Select
-                        value={casualTamanho}
-                        onValueChange={setCasualTamanho}
+                  <div
+                    className={`space-y-3 rounded-md border p-3 ${
+                      isCasualVisibleForUser ? "" : "hidden"
+                    }`}
+                  >
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <a
+                        href="/Casual.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mx-auto block h-[220px] w-[220px] overflow-hidden rounded-md border md:mx-0"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tamanho" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CASUAL_TAMANHOS.map((item) => (
-                            <SelectItem key={item} value={item}>
-                              {item}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Quantidade</p>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={casualQuantidade}
-                          onChange={(event) =>
-                            handleCasualQuantidadeChange(event.target.value)
-                          }
-                          placeholder="Quantidade"
+                        <Image
+                          src="/Casual.jpeg"
+                          alt="Camisa Casual CF 2026"
+                          width={320}
+                          height={420}
+                          className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
 
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Valor</p>
-                        <Input
-                          value={formatCurrency(uniformeCasualPrice)}
-                          readOnly
-                          aria-readonly="true"
-                        />
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Tamanho da Camisa Casual</p>
+                          <Select
+                            value={casualTamanho}
+                            onValueChange={setCasualTamanho}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tamanho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CASUAL_TAMANHOS.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Quantidade</p>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={casualQuantidade}
+                              onChange={(event) =>
+                                handleCasualQuantidadeChange(event.target.value)
+                              }
+                              placeholder="Quantidade"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">Valor</p>
+                            <Input
+                              value={formatCurrency(uniformeCasualPrice)}
+                              readOnly
+                              aria-readonly="true"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1061,18 +1302,6 @@ export default function UniformePage() {
                                 {formatCurrency(totalGeralResumo)}
                               </TableCell>
                             </TableRow>
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-right">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => void handleCopyPix()}
-                                >
-                                  Copiar Pix
-                                </Button>
-                              </TableCell>
-                            </TableRow>
                           </>
                         ) : (
                           <TableRow>
@@ -1085,9 +1314,81 @@ export default function UniformePage() {
                     </Table>
                   </div>
 
-                  <Button onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? "Salvando..." : "Salvar Escolha"}
-                  </Button>
+                  <div className="space-y-3 rounded-md border p-3">
+                    <p className="text-sm font-medium">Histórico de Pedidos</p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Jersey</TableHead>
+                          <TableHead>Bretelle</TableHead>
+                          <TableHead>Manguito</TableHead>
+                          <TableHead>Casual</TableHead>
+                          <TableHead>Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pedidoHistory && pedidoHistory.length > 0 ? (
+                            pedidoHistory.map((historyItem) => (
+                              <TableRow key={historyItem.id}>
+                                <TableCell>
+                                  {formatHistoryDate(
+                                    historyItem.createdAt,
+                                    historyItem.savedAtClient,
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {formatHistoryItem(
+                                    historyItem.jerseySize,
+                                    Number(historyItem.jerseyQuantity || 0),
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {formatHistoryItem(
+                                    historyItem.bretelleSize,
+                                    Number(historyItem.bretelleQuantity || 0),
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {formatHistoryItem(
+                                    historyItem.manguitoSize,
+                                    Number(historyItem.manguitoQuantity || 0),
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {formatHistoryItem(
+                                    historyItem.casualSize,
+                                    Number(historyItem.casualQuantity || 0),
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {formatCurrency(Number(historyItem.totalAmount || 0))}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-muted-foreground">
+                              Nenhum pedido salvo ainda.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleCopyPix()}
+                    >
+                      Copiar Pix
+                    </Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                      {isSaving ? "Salvando..." : "Salvar Pedido"}
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>

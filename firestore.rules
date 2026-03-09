@@ -78,6 +78,13 @@ service cloud.firestore {
       allow update: if resource != null && hasImmutableProfileFields() && (ownerKeepsRoleAndGroups(userId) || isAdmin());
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
+
+    match /users/{userId}/uniformeHistory/{historyId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
     
     // ------------------------------------------------------------------------
     // User Images Subcollection

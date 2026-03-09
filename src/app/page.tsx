@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
   role?: string;
+  galleryCardEnabled?: boolean;
   uniformeCF2026Enabled?: boolean;
   uniformeCF2026Title?: string;
   uniformeCF2026Description?: string;
@@ -207,7 +208,9 @@ export default function HomePage() {
   );
   const { data: users } = useCollection<BasicUser>(usersQuery);
   const isUniformeCardEnabled = Boolean(userProfile?.uniformeCF2026Enabled);
+  const isGalleryCardEnabled = userProfile?.galleryCardEnabled !== false;
   const [isUpdatingUniformeFlag, setIsUpdatingUniformeFlag] = useState(false);
+  const [isUpdatingGalleryFlag, setIsUpdatingGalleryFlag] = useState(false);
   const uniformeCardTitle =
     String(userProfile?.uniformeCF2026Title || '').trim() || 'Uniforme CF 2026';
   const uniformeCardDescription =
@@ -276,6 +279,30 @@ export default function HomePage() {
       );
     } finally {
       setIsUpdatingUniformeFlag(false);
+    }
+  };
+
+  const handleGalleryVisibilityToggle = async (checked: boolean) => {
+    if (!isAdmin || !users || users.length === 0) {
+      return;
+    }
+
+    setIsUpdatingGalleryFlag(true);
+
+    try {
+      await Promise.all(
+        users.map((item) =>
+          setDocumentNonBlocking(
+            doc(firestore, 'users', item.id),
+            {
+              galleryCardEnabled: checked,
+            },
+            { merge: true },
+          ),
+        ),
+      );
+    } finally {
+      setIsUpdatingGalleryFlag(false);
     }
   };
 
@@ -529,30 +556,42 @@ export default function HomePage() {
               </Card>
             )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button asChild variant="outline">
-                  <Link href="/gallery">Abrir Galeria</Link>
-                </Button>
-                {isAdmin && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Armazenamento da galeria</span>
-                      <span className="font-medium">
-                        {isLoadingGalleryStorage
-                          ? 'Calculando...'
-                          : `${formatBytesToGb(usedGalleryStorageBytes)} GB / 512.00 GB`}
-                      </span>
+            {(isAdmin || isGalleryCardEnabled) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button asChild variant="outline">
+                    <Link href="/gallery">Abrir Galeria</Link>
+                  </Button>
+                  {isAdmin && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Exibir card para usuários</span>
+                        <Switch
+                          checked={isGalleryCardEnabled}
+                          onCheckedChange={(checked) => {
+                            void handleGalleryVisibilityToggle(Boolean(checked));
+                          }}
+                          disabled={isUpdatingGalleryFlag}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Armazenamento da galeria</span>
+                        <span className="font-medium">
+                          {isLoadingGalleryStorage
+                            ? 'Calculando...'
+                            : `${formatBytesToGb(usedGalleryStorageBytes)} GB / 512.00 GB`}
+                        </span>
+                      </div>
+                      <Progress value={galleryStorageProgressPercentage} />
                     </div>
-                    <Progress value={galleryStorageProgressPercentage} />
-                  </div>
-                )}
-                <p className="text-sm text-muted-foreground">Veja e envie mídias para os grupos aos quais você pertence.</p>
-              </CardContent>
-            </Card>
+                  )}
+                  <p className="text-sm text-muted-foreground">Veja e envie mídias para os grupos aos quais você pertence.</p>
+                </CardContent>
+              </Card>
+            )}
 
             {isBillingEnabled && (
               <Card>

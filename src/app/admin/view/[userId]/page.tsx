@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,8 +8,10 @@ import {
   useFirestore,
   useDoc,
   useMemoFirebase,
+  useCollection,
+  deleteDocumentNonBlocking,
 } from "@/firebase";
-import { doc, Timestamp } from "firebase/firestore";
+import { collection, doc, orderBy, query, Timestamp } from "firebase/firestore";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +21,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdminProfile {
   role: string;
@@ -52,6 +63,21 @@ interface ReadonlyUserProfile {
   uploadGroups?: string[];
 }
 
+interface UniformeChoiceHistoryEntry {
+  id: string;
+  createdAt?: Timestamp;
+  savedAtClient?: string;
+  jerseySize?: string;
+  jerseyQuantity?: number;
+  bretelleSize?: string;
+  bretelleQuantity?: number;
+  manguitoSize?: string;
+  manguitoQuantity?: number;
+  casualSize?: string;
+  casualQuantity?: number;
+  totalAmount?: number;
+}
+
 const getDisplayValue = (value: unknown): string => {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -81,12 +107,41 @@ const getDisplayValue = (value: unknown): string => {
   return String(value);
 };
 
+const formatHistoryDate = (value?: Timestamp, fallback?: string) => {
+  if (value instanceof Timestamp) {
+    return value.toDate().toLocaleString("pt-BR");
+  }
+
+  if (!fallback) return "-";
+
+  const parsedDate = new Date(fallback);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return fallback;
+  }
+
+  return parsedDate.toLocaleString("pt-BR");
+};
+
+const formatHistoryItem = (size?: string, quantity?: number) => {
+  const safeQuantity = Number(quantity || 0);
+  if (!Number.isFinite(safeQuantity) || safeQuantity <= 0) return "-";
+  return `${size || "-"} / ${safeQuantity}`;
+};
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
+
 export default function AdminViewUserPage() {
   const { user: adminUser, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
   const params = useParams();
   const userId = params.userId as string;
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
 
   const adminDocRef = useMemoFirebase(
     () => (adminUser ? doc(firestore, "users", adminUser.uid) : null),
@@ -101,6 +156,16 @@ export default function AdminViewUserPage() {
   );
   const { data: userProfile, isLoading: isProfileLoading } =
     useDoc<ReadonlyUserProfile>(userDocRef);
+  const historyCollectionRef = useMemoFirebase(
+    () => collection(firestore, "users", userId, "uniformeHistory"),
+    [firestore, userId],
+  );
+  const historyQuery = useMemoFirebase(
+    () => query(historyCollectionRef, orderBy("createdAt", "desc")),
+    [historyCollectionRef],
+  );
+  const { data: uniformeHistory, isLoading: isHistoryLoading } =
+    useCollection<UniformeChoiceHistoryEntry>(historyQuery);
 
   useEffect(() => {
     if (!isUserLoading && !adminUser) {
@@ -117,6 +182,29 @@ export default function AdminViewUserPage() {
   }, [adminUser, adminProfile, isUserLoading, isAdminProfileLoading, router]);
 
   const isLoading = isUserLoading || isAdminProfileLoading || isProfileLoading;
+
+  const handleDeleteHistory = async (historyId: string) => {
+    if (!historyId) return;
+
+    try {
+      setDeletingHistoryId(historyId);
+      await deleteDocumentNonBlocking(
+        doc(firestore, "users", userId, "uniformeHistory", historyId),
+      );
+      toast({
+        title: "Histórico removido",
+        description: "A linha selecionada foi removida com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao remover",
+        description: "Não foi possível remover a linha do histórico.",
+      });
+    } finally {
+      setDeletingHistoryId(null);
+    }
+  };
 
   if (isLoading || !adminProfile || adminProfile.role !== "admin") {
     return (
@@ -159,12 +247,17 @@ export default function AdminViewUserPage() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="container mx-auto max-w-3xl flex-1 p-4 md:p-8">
-        <Button variant="outline" asChild className="mb-4">
-          <Link href="/admin">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para o Painel
-          </Link>
-        </Button>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para o Painel
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/admin/pay-uniforme">Pagamento Uniforme</Link>
+          </Button>
+        </div>
 
         <Card>
           <CardHeader>
@@ -189,6 +282,77 @@ export default function AdminViewUserPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="font-headline text-2xl">
+              Histórico de Pedido de Uniforme
+            </CardTitle>
+            <CardDescription>
+              O administrador pode remover qualquer linha do histórico do usuário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isHistoryLoading ? (
+              <p className="text-muted-foreground">Carregando histórico...</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Jersey</TableHead>
+                    <TableHead>Bretelle</TableHead>
+                    <TableHead>Manguito</TableHead>
+                    <TableHead>Casual</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {uniformeHistory && uniformeHistory.length > 0 ? (
+                    uniformeHistory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {formatHistoryDate(item.createdAt, item.savedAtClient)}
+                        </TableCell>
+                        <TableCell>
+                          {formatHistoryItem(item.jerseySize, item.jerseyQuantity)}
+                        </TableCell>
+                        <TableCell>
+                          {formatHistoryItem(item.bretelleSize, item.bretelleQuantity)}
+                        </TableCell>
+                        <TableCell>
+                          {formatHistoryItem(item.manguitoSize, item.manguitoQuantity)}
+                        </TableCell>
+                        <TableCell>
+                          {formatHistoryItem(item.casualSize, item.casualQuantity)}
+                        </TableCell>
+                        <TableCell>{formatCurrency(Number(item.totalAmount || 0))}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void handleDeleteHistory(item.id)}
+                            disabled={deletingHistoryId === item.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-muted-foreground">
+                        Nenhum histórico de pedido encontrado para este usuário.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>

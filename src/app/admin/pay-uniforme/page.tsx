@@ -487,6 +487,9 @@ export default function AdminPayUniformePage() {
                         <TableCell colSpan={9}>
                           <div className="space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
+                              <Button type="button" size="sm" variant="outline" asChild>
+                                <Link href={`/admin/view/${item.id}`}>Perfil</Link>
+                              </Button>
                               <Button
                                 type="button"
                                 size="sm"
