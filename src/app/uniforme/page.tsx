@@ -53,6 +53,7 @@ import { useToast } from "@/hooks/use-toast";
 interface UserUniformeProfile {
   role?: string;
   uniformeCF2026Enabled?: boolean;
+  uniformeCF2026SalesBlocked?: boolean;
   uniformeCF2026JerseyEnabled?: boolean;
   uniformeCF2026BretelleEnabled?: boolean;
   uniformeCF2026ManguitoEnabled?: boolean;
@@ -224,6 +225,8 @@ export default function UniformePage() {
   const isManguitoVisibleForUser = userProfile?.uniformeCF2026ManguitoEnabled !== false;
   const isCasualVisibleForUser = userProfile?.uniformeCF2026CasualEnabled !== false;
   const isBermudaVisibleForUser = userProfile?.uniformeCF2026BermudaEnabled !== false;
+  const isUniformeSalesBlockedForUser =
+    !isAdmin && userProfile?.uniformeCF2026SalesBlocked === true;
   const uniformeCardTitle =
     String(userProfile?.uniformeCF2026Title || "").trim() ||
     "Uniforme CF 2026";
@@ -488,6 +491,16 @@ export default function UniformePage() {
   const handleSave = async () => {
     if (!userDocRef) return;
 
+    if (isUniformeSalesBlockedForUser) {
+      toast({
+        variant: "destructive",
+        title: "Vendas bloqueadas",
+        description:
+          "Novos pedidos de uniforme estão bloqueados no momento. Você pode apenas visualizar pedidos já feitos.",
+      });
+      return;
+    }
+
     const parsedQuantidade = Number(quantidade);
     const parsedBretelleQuantidade = Number(bretelleQuantidade);
     const parsedManguitoQuantidade = Number(manguitoQuantidade);
@@ -688,6 +701,10 @@ export default function UniformePage() {
   };
 
   const handleClearOrder = () => {
+    if (isUniformeSalesBlockedForUser) {
+      return;
+    }
+
     setTamanho("");
     setBretelleTamanho("");
     setManguitoTamanho("");
@@ -1259,6 +1276,12 @@ export default function UniformePage() {
                 </>
               ) : (
                 <>
+                  {isUniformeSalesBlockedForUser && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                      Novos pedidos bloqueados. Aguarde o próximo lote.
+                    </div>
+                  )}
+
                   <div
                     className={`space-y-3 rounded-md border p-3 ${
                       isJerseyVisibleForUser ? "" : "hidden"
@@ -1289,7 +1312,11 @@ export default function UniformePage() {
                         )}
                         <div className="space-y-2">
                           <p className="text-sm text-muted-foreground">Tamanho da Jersey</p>
-                          <Select value={tamanho} onValueChange={setTamanho}>
+                          <Select
+                            value={tamanho}
+                            onValueChange={setTamanho}
+                            disabled={isUniformeSalesBlockedForUser || isSaving}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tamanho" />
                             </SelectTrigger>
@@ -1328,6 +1355,7 @@ export default function UniformePage() {
                               value={quantidade}
                               onChange={(event) => handleQuantidadeChange(event.target.value)}
                               placeholder="Quantidade"
+                              disabled={isUniformeSalesBlockedForUser || isSaving}
                             />
                           </div>
 
@@ -1376,6 +1404,7 @@ export default function UniformePage() {
                           <Select
                             value={bretelleTamanho}
                             onValueChange={setBretelleTamanho}
+                            disabled={isUniformeSalesBlockedForUser || isSaving}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tamanho" />
@@ -1402,6 +1431,7 @@ export default function UniformePage() {
                                 handleBretelleQuantidadeChange(event.target.value)
                               }
                               placeholder="Quantidade"
+                              disabled={isUniformeSalesBlockedForUser || isSaving}
                             />
                           </div>
 
@@ -1450,6 +1480,7 @@ export default function UniformePage() {
                           <Select
                             value={manguitoTamanho}
                             onValueChange={setManguitoTamanho}
+                            disabled={isUniformeSalesBlockedForUser || isSaving}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tamanho" />
@@ -1476,6 +1507,7 @@ export default function UniformePage() {
                                 handleManguitoQuantidadeChange(event.target.value)
                               }
                               placeholder="Quantidade"
+                              disabled={isUniformeSalesBlockedForUser || isSaving}
                             />
                           </div>
 
@@ -1524,6 +1556,7 @@ export default function UniformePage() {
                           <Select
                             value={casualTamanho}
                             onValueChange={setCasualTamanho}
+                            disabled={isUniformeSalesBlockedForUser || isSaving}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tamanho" />
@@ -1550,6 +1583,7 @@ export default function UniformePage() {
                                 handleCasualQuantidadeChange(event.target.value)
                               }
                               placeholder="Quantidade"
+                              disabled={isUniformeSalesBlockedForUser || isSaving}
                             />
                           </div>
 
@@ -1598,6 +1632,7 @@ export default function UniformePage() {
                           <Select
                             value={bermudaTamanho}
                             onValueChange={setBermudaTamanho}
+                            disabled={isUniformeSalesBlockedForUser || isSaving}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tamanho" />
@@ -1624,6 +1659,7 @@ export default function UniformePage() {
                                 handleBermudaQuantidadeChange(event.target.value)
                               }
                               placeholder="Quantidade"
+                              disabled={isUniformeSalesBlockedForUser || isSaving}
                             />
                           </div>
 
@@ -1701,7 +1737,7 @@ export default function UniformePage() {
                         type="button"
                         variant="outline"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={isSaving || isUniformeSalesBlockedForUser}
                       >
                         {isSaving ? "Salvando..." : "Salvar Pedido"}
                       </Button>
@@ -1709,7 +1745,7 @@ export default function UniformePage() {
                         type="button"
                         variant="outline"
                         onClick={handleClearOrder}
-                        disabled={isSaving}
+                        disabled={isSaving || isUniformeSalesBlockedForUser}
                       >
                         Limpar
                       </Button>
