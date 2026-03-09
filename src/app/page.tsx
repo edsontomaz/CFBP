@@ -35,6 +35,7 @@ interface UserProfile {
   role?: string;
   galleryCardEnabled?: boolean;
   uniformeCF2026Enabled?: boolean;
+  uniformeCF2026SalesBlocked?: boolean;
   uniformeCF2026Title?: string;
   uniformeCF2026Description?: string;
   billingEnabled?: boolean;
@@ -208,8 +209,11 @@ export default function HomePage() {
   );
   const { data: users } = useCollection<BasicUser>(usersQuery);
   const isUniformeCardEnabled = Boolean(userProfile?.uniformeCF2026Enabled);
+  const isUniformeSalesBlocked = Boolean(userProfile?.uniformeCF2026SalesBlocked);
   const isGalleryCardEnabled = userProfile?.galleryCardEnabled !== false;
   const [isUpdatingUniformeFlag, setIsUpdatingUniformeFlag] = useState(false);
+  const [isUpdatingUniformeSalesBlockFlag, setIsUpdatingUniformeSalesBlockFlag] =
+    useState(false);
   const [isUpdatingGalleryFlag, setIsUpdatingGalleryFlag] = useState(false);
   const uniformeCardTitle =
     String(userProfile?.uniformeCF2026Title || '').trim() || 'Uniforme CF 2026';
@@ -303,6 +307,30 @@ export default function HomePage() {
       );
     } finally {
       setIsUpdatingGalleryFlag(false);
+    }
+  };
+
+  const handleUniformeSalesBlockToggle = async (checked: boolean) => {
+    if (!isAdmin || !users || users.length === 0) {
+      return;
+    }
+
+    setIsUpdatingUniformeSalesBlockFlag(true);
+
+    try {
+      await Promise.all(
+        users.map((item) =>
+          setDocumentNonBlocking(
+            doc(firestore, 'users', item.id),
+            {
+              uniformeCF2026SalesBlocked: checked,
+            },
+            { merge: true },
+          ),
+        ),
+      );
+    } finally {
+      setIsUpdatingUniformeSalesBlockFlag(false);
     }
   };
 
@@ -522,6 +550,16 @@ export default function HomePage() {
                         void handleUniformeVisibilityToggle(Boolean(checked));
                       }}
                       disabled={isUpdatingUniformeFlag}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Bloqueio de Vendas</span>
+                    <Switch
+                      checked={isUniformeSalesBlocked}
+                      onCheckedChange={(checked) => {
+                        void handleUniformeSalesBlockToggle(Boolean(checked));
+                      }}
+                      disabled={isUpdatingUniformeSalesBlockFlag}
                     />
                   </div>
                 </CardContent>
