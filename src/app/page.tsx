@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
   role?: string;
+  grupo?: string[];
   galleryCardEnabled?: boolean;
   uniformeCF2026Enabled?: boolean;
   uniformeCF2026SalesBlocked?: boolean;
@@ -211,6 +212,8 @@ export default function HomePage() {
   const isUniformeCardEnabled = Boolean(userProfile?.uniformeCF2026Enabled);
   const isUniformeSalesBlocked = Boolean(userProfile?.uniformeCF2026SalesBlocked);
   const isGalleryCardEnabled = userProfile?.galleryCardEnabled !== false;
+  const userGroups = Array.isArray(userProfile?.grupo) ? userProfile.grupo : [];
+  const userHasGroup = userGroups.some((groupName) => String(groupName).trim().length > 0);
   const [isUpdatingUniformeFlag, setIsUpdatingUniformeFlag] = useState(false);
   const [isUpdatingUniformeSalesBlockFlag, setIsUpdatingUniformeSalesBlockFlag] =
     useState(false);
@@ -233,7 +236,7 @@ export default function HomePage() {
     totalAmount > 0
       ? Math.min((Math.max(amountPaid, 0) / totalAmount) * 100, 100)
       : 0;
-  const uniformeComputedTotal = computeUniformTotalFromChoice(userProfile);
+  const uniformeComputedTotal = computeUniformTotalFromChoice(userProfile ?? undefined);
   const uniformeSavedTotal = Number(userProfile?.uniformeChoiceTotalAmount || 0);
   const uniformeTotalAmount = uniformeSavedTotal > 0 ? uniformeSavedTotal : uniformeComputedTotal;
   const normalizedUniformPayments = normalizeUniformPayments(
@@ -594,7 +597,7 @@ export default function HomePage() {
               </Card>
             )}
 
-            {(isAdmin || isGalleryCardEnabled) && (
+            {(isAdmin || (isGalleryCardEnabled && userHasGroup)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5" /> Galeria</CardTitle>
