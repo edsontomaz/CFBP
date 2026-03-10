@@ -52,27 +52,6 @@ import { useToast } from "@/hooks/use-toast";
 
 interface UserUniformeProfile {
   role?: string;
-  uniformeCF2026Enabled?: boolean;
-  uniformeCF2026SalesBlocked?: boolean;
-  uniformeCF2026JerseyEnabled?: boolean;
-  uniformeCF2026BretelleEnabled?: boolean;
-  uniformeCF2026ManguitoEnabled?: boolean;
-  uniformeCF2026CasualEnabled?: boolean;
-  uniformeCF2026BermudaEnabled?: boolean;
-  uniformeCF2026JerseySizeGuideUrl?: string;
-  uniformeCF2026JerseyShortDescription?: string;
-  uniformeCF2026BretelleShortDescription?: string;
-  uniformeCF2026ManguitoShortDescription?: string;
-  uniformeCF2026CasualShortDescription?: string;
-  uniformeCF2026BermudaShortDescription?: string;
-  uniformeCF2026Title?: string;
-  uniformeCF2026Description?: string;
-  uniformeCF2026Observacoes?: string;
-  uniformeCF2026Price?: number;
-  uniformeCF2026BretellePrice?: number;
-  uniformeCF2026ManguitoPrice?: number;
-  uniformeCF2026CasualPrice?: number;
-  uniformeCF2026BermudaPrice?: number;
   uniformeChoiceSize?: string;
   uniformeChoiceBretelleSize?: string;
   uniformeChoiceManguitoSize?: string;
@@ -84,6 +63,30 @@ interface UserUniformeProfile {
   uniformeChoiceCasualQuantity?: number;
   uniformeChoiceBermudaQuantity?: number;
   uniformeChoiceTotalAmount?: number;
+}
+
+interface UniformeConfig {
+  enabled?: boolean;
+  salesBlocked?: boolean;
+  jerseyEnabled?: boolean;
+  bretelleEnabled?: boolean;
+  manguitoEnabled?: boolean;
+  casualEnabled?: boolean;
+  bermudaEnabled?: boolean;
+  jerseySizeGuideUrl?: string;
+  jerseyShortDescription?: string;
+  bretelleShortDescription?: string;
+  manguitoShortDescription?: string;
+  casualShortDescription?: string;
+  bermudaShortDescription?: string;
+  title?: string;
+  description?: string;
+  observacoes?: string;
+  jerseyPrice?: number;
+  bretellePrice?: number;
+  manguitoPrice?: number;
+  casualPrice?: number;
+  bermudaPrice?: number;
 }
 
 interface UniformeChoiceHistoryEntry {
@@ -102,15 +105,11 @@ interface UniformeChoiceHistoryEntry {
   totalAmount: number;
 }
 
-interface AdminUser {
-  id: string;
-}
-
 const JERSEY_TAMANHOS = ["N/A", "3P", "PP", "P", "M", "G", "GG", "3G", "4G"];
 const BRETELLE_TAMANHOS = ["N/A", "PP", "P", "M", "G", "GG", "3G", "4G"];
 const MANGUITO_TAMANHOS = ["N/A", "P", "M", "G"];
 const CASUAL_TAMANHOS = ["N/A", "PP", "P", "M", "G", "GG", "3G", "4G"];
-const BERMUDA_TAMANHOS = ["PP", "P", "M", "G", "GG", "3G", "4G"];
+const BERMUDA_TAMANHOS = ["N/A", "PP", "P", "M", "G", "GG", "3G", "4G"];
 const PIX_KEY = "bike.pontal@gmail.com.br";
 
 const formatCurrency = (value: number) =>
@@ -154,6 +153,20 @@ const formatHistoryItem = (size: string, quantity: number) => {
   return `${size || "-"} / ${quantity}`;
 };
 
+const parsePriceWithFallback = (value: string, fallback: number) => {
+  const normalized = String(value || "").replace(",", ".").trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
 export default function UniformePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -167,13 +180,14 @@ export default function UniformePage() {
 
   const { data: userProfile, isLoading: isProfileLoading } =
     useDoc<UserUniformeProfile>(userDocRef);
+  const uniformeConfigDocRef = useMemoFirebase(
+    () => doc(firestore, "config", "uniforme"),
+    [firestore],
+  );
+  const { data: uniformeConfig, isLoading: isConfigLoading } =
+    useDoc<UniformeConfig>(uniformeConfigDocRef);
 
   const isAdmin = userProfile?.role === "admin";
-  const usersQuery = useMemoFirebase(
-    () => (isAdmin ? collection(firestore, "users") : null),
-    [firestore, isAdmin],
-  );
-  const { data: users } = useCollection<AdminUser>(usersQuery);
   const historyCollectionRef = useMemoFirebase(
     () => (user ? collection(firestore, "users", user.uid, "uniformeHistory") : null),
     [firestore, user],
@@ -220,42 +234,43 @@ export default function UniformePage() {
   const [manguitoEnabled, setManguitoEnabled] = useState(true);
   const [casualEnabled, setCasualEnabled] = useState(true);
   const [bermudaEnabled, setBermudaEnabled] = useState(true);
-  const isJerseyVisibleForUser = userProfile?.uniformeCF2026JerseyEnabled !== false;
-  const isBretelleVisibleForUser = userProfile?.uniformeCF2026BretelleEnabled !== false;
-  const isManguitoVisibleForUser = userProfile?.uniformeCF2026ManguitoEnabled !== false;
-  const isCasualVisibleForUser = userProfile?.uniformeCF2026CasualEnabled !== false;
-  const isBermudaVisibleForUser = userProfile?.uniformeCF2026BermudaEnabled !== false;
+  const isUniformeEnabled = uniformeConfig?.enabled !== false;
+  const isJerseyVisibleForUser = uniformeConfig?.jerseyEnabled !== false;
+  const isBretelleVisibleForUser = uniformeConfig?.bretelleEnabled !== false;
+  const isManguitoVisibleForUser = uniformeConfig?.manguitoEnabled !== false;
+  const isCasualVisibleForUser = uniformeConfig?.casualEnabled !== false;
+  const isBermudaVisibleForUser = uniformeConfig?.bermudaEnabled !== false;
   const isUniformeSalesBlockedForUser =
-    !isAdmin && userProfile?.uniformeCF2026SalesBlocked === true;
+    !isAdmin && uniformeConfig?.salesBlocked === true;
   const uniformeCardTitle =
-    String(userProfile?.uniformeCF2026Title || "").trim() ||
+    String(uniformeConfig?.title || "").trim() ||
     "Uniforme CF 2026";
   const uniformeCardDescription =
-    String(userProfile?.uniformeCF2026Description || "").trim() ||
+    String(uniformeConfig?.description || "").trim() ||
     "Escolha seu uniforme oficial de 2026.";
   const jerseyShortDescriptionView = String(
-    userProfile?.uniformeCF2026JerseyShortDescription || "",
+    uniformeConfig?.jerseyShortDescription || "",
   ).trim();
   const bretelleShortDescriptionView = String(
-    userProfile?.uniformeCF2026BretelleShortDescription || "",
+    uniformeConfig?.bretelleShortDescription || "",
   ).trim();
   const manguitoShortDescriptionView = String(
-    userProfile?.uniformeCF2026ManguitoShortDescription || "",
+    uniformeConfig?.manguitoShortDescription || "",
   ).trim();
   const casualShortDescriptionView = String(
-    userProfile?.uniformeCF2026CasualShortDescription || "",
+    uniformeConfig?.casualShortDescription || "",
   ).trim();
   const bermudaShortDescriptionView = String(
-    userProfile?.uniformeCF2026BermudaShortDescription || "",
+    uniformeConfig?.bermudaShortDescription || "",
   ).trim();
   const uniformeObservacoesView = String(
-    userProfile?.uniformeCF2026Observacoes || "",
+    uniformeConfig?.observacoes || "",
   ).trim();
-  const uniformePrice = Number(userProfile?.uniformeCF2026Price || 0);
-  const uniformeBretellePrice = Number(userProfile?.uniformeCF2026BretellePrice || 0);
-  const uniformeManguitoPrice = Number(userProfile?.uniformeCF2026ManguitoPrice || 0);
-  const uniformeCasualPrice = Number(userProfile?.uniformeCF2026CasualPrice || 0);
-  const uniformeBermudaPrice = Number(userProfile?.uniformeCF2026BermudaPrice || 0);
+  const uniformePrice = Number(uniformeConfig?.jerseyPrice || 0);
+  const uniformeBretellePrice = Number(uniformeConfig?.bretellePrice || 0);
+  const uniformeManguitoPrice = Number(uniformeConfig?.manguitoPrice || 0);
+  const uniformeCasualPrice = Number(uniformeConfig?.casualPrice || 0);
+  const uniformeBermudaPrice = Number(uniformeConfig?.bermudaPrice || 0);
   const jerseyQuantidade = Number(quantidade || 0);
   const bretelleQuantidadeNum = Number(bretelleQuantidade || 0);
   const manguitoQuantidadeNum = Number(manguitoQuantidade || 0);
@@ -348,129 +363,117 @@ export default function UniformePage() {
         ? String(userProfile.uniformeChoiceBermudaQuantity)
         : "",
     );
-    setUniformeValor(String(Number(userProfile.uniformeCF2026Price || 0)));
-    setBretelleValor(String(Number(userProfile.uniformeCF2026BretellePrice || 0)));
-    setManguitoValor(String(Number(userProfile.uniformeCF2026ManguitoPrice || 0)));
-    setCasualValor(String(Number(userProfile.uniformeCF2026CasualPrice || 0)));
-    setBermudaValor(String(Number(userProfile.uniformeCF2026BermudaPrice || 0)));
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (!uniformeConfig) return;
+
+    setUniformeValor(String(Number(uniformeConfig.jerseyPrice || 0)));
+    setBretelleValor(String(Number(uniformeConfig.bretellePrice || 0)));
+    setManguitoValor(String(Number(uniformeConfig.manguitoPrice || 0)));
+    setCasualValor(String(Number(uniformeConfig.casualPrice || 0)));
+    setBermudaValor(String(Number(uniformeConfig.bermudaPrice || 0)));
     setUniformeTitle(
-      String(userProfile.uniformeCF2026Title || "").trim() ||
+      String(uniformeConfig.title || "").trim() ||
         "Uniforme CF 2026",
     );
     setUniformeDescription(
-      String(userProfile.uniformeCF2026Description || "").trim() ||
+      String(uniformeConfig.description || "").trim() ||
         "Escolha seu uniforme oficial de 2026.",
     );
-    setUniformeObservacoes(String(userProfile.uniformeCF2026Observacoes || ""));
-    setJerseySizeGuideUrl(String(userProfile.uniformeCF2026JerseySizeGuideUrl || "").trim());
+    setUniformeObservacoes(String(uniformeConfig.observacoes || ""));
+    setJerseySizeGuideUrl(String(uniformeConfig.jerseySizeGuideUrl || "").trim());
     setJerseyShortDescription(
-      String(userProfile.uniformeCF2026JerseyShortDescription || "").trim(),
+      String(uniformeConfig.jerseyShortDescription || "").trim(),
     );
     setBretelleShortDescription(
-      String(userProfile.uniformeCF2026BretelleShortDescription || "").trim(),
+      String(uniformeConfig.bretelleShortDescription || "").trim(),
     );
     setManguitoShortDescription(
-      String(userProfile.uniformeCF2026ManguitoShortDescription || "").trim(),
+      String(uniformeConfig.manguitoShortDescription || "").trim(),
     );
     setCasualShortDescription(
-      String(userProfile.uniformeCF2026CasualShortDescription || "").trim(),
+      String(uniformeConfig.casualShortDescription || "").trim(),
     );
     setBermudaShortDescription(
-      String(userProfile.uniformeCF2026BermudaShortDescription || "").trim(),
+      String(uniformeConfig.bermudaShortDescription || "").trim(),
     );
-    setJerseyEnabled(userProfile.uniformeCF2026JerseyEnabled !== false);
-    setBretelleEnabled(userProfile.uniformeCF2026BretelleEnabled !== false);
-    setManguitoEnabled(userProfile.uniformeCF2026ManguitoEnabled !== false);
-    setCasualEnabled(userProfile.uniformeCF2026CasualEnabled !== false);
-    setBermudaEnabled(userProfile.uniformeCF2026BermudaEnabled !== false);
-  }, [userProfile]);
+    setJerseyEnabled(uniformeConfig.jerseyEnabled !== false);
+    setBretelleEnabled(uniformeConfig.bretelleEnabled !== false);
+    setManguitoEnabled(uniformeConfig.manguitoEnabled !== false);
+    setCasualEnabled(uniformeConfig.casualEnabled !== false);
+    setBermudaEnabled(uniformeConfig.bermudaEnabled !== false);
+  }, [uniformeConfig]);
 
   useEffect(() => {
     if (isProfileLoading || !userProfile) {
       return;
     }
 
-    if (!isAdmin && !userProfile.uniformeCF2026Enabled) {
+    if (!isAdmin && !isUniformeEnabled) {
       router.replace("/");
     }
-  }, [isAdmin, isProfileLoading, userProfile, router]);
+  }, [isAdmin, isProfileLoading, isUniformeEnabled, userProfile, router]);
 
   const handleSaveConfig = async () => {
-    if (!isAdmin || !users || users.length === 0) {
+    if (!isAdmin || !uniformeConfigDocRef) {
       return;
     }
 
     const title = uniformeTitle.trim() || "Uniforme CF 2026";
     const description =
       uniformeDescription.trim() || "Escolha seu uniforme oficial de 2026.";
-    const parsedValor = Number(uniformeValor.replace(",", "."));
-    const parsedBretelleValor = Number(bretelleValor.replace(",", "."));
-    const parsedManguitoValor = Number(manguitoValor.replace(",", "."));
-    const parsedCasualValor = Number(casualValor.replace(",", "."));
-    const parsedBermudaValor = Number(bermudaValor.replace(",", "."));
-
-    if (
-      !Number.isFinite(parsedValor) ||
-      parsedValor < 0 ||
-      !Number.isFinite(parsedBretelleValor) ||
-      parsedBretelleValor < 0 ||
-      !Number.isFinite(parsedManguitoValor) ||
-      parsedManguitoValor < 0 ||
-      !Number.isFinite(parsedCasualValor) ||
-      parsedCasualValor < 0 ||
-      !Number.isFinite(parsedBermudaValor) ||
-      parsedBermudaValor < 0
-    ) {
-      toast({
-        variant: "destructive",
-        title: "Valor inválido",
-        description:
-          "Informe valores validos para jersey, bretelle, manguito e camisa casual.",
-      });
-      return;
-    }
+    const parsedValor = parsePriceWithFallback(
+      uniformeValor,
+      Number(uniformeConfig?.jerseyPrice || 0),
+    );
+    const parsedBretelleValor = parsePriceWithFallback(
+      bretelleValor,
+      Number(uniformeConfig?.bretellePrice || 0),
+    );
+    const parsedManguitoValor = parsePriceWithFallback(
+      manguitoValor,
+      Number(uniformeConfig?.manguitoPrice || 0),
+    );
+    const parsedCasualValor = parsePriceWithFallback(
+      casualValor,
+      Number(uniformeConfig?.casualPrice || 0),
+    );
+    const parsedBermudaValor = parsePriceWithFallback(
+      bermudaValor,
+      Number(uniformeConfig?.bermudaPrice || 0),
+    );
 
     try {
       setIsSavingConfig(true);
 
-      await Promise.all(
-        users.map((item) =>
-          setDocumentNonBlocking(
-            doc(firestore, "users", item.id),
-            {
-              uniformeCF2026Title: title,
-              uniformeCF2026Description: description,
-              uniformeCF2026Observacoes: uniformeObservacoes.trim(),
-              uniformeCF2026JerseySizeGuideUrl: jerseySizeGuideUrl.trim(),
-              uniformeCF2026JerseyShortDescription: jerseyShortDescription.trim(),
-              uniformeCF2026BretelleShortDescription:
-                bretelleShortDescription.trim(),
-              uniformeCF2026ManguitoShortDescription:
-                manguitoShortDescription.trim(),
-              uniformeCF2026CasualShortDescription: casualShortDescription.trim(),
-              uniformeCF2026BermudaShortDescription: bermudaShortDescription.trim(),
-              uniformeCF2026JerseyEnabled: jerseyEnabled,
-              uniformeCF2026BretelleEnabled: bretelleEnabled,
-              uniformeCF2026ManguitoEnabled: manguitoEnabled,
-              uniformeCF2026CasualEnabled: casualEnabled,
-              uniformeCF2026BermudaEnabled: bermudaEnabled,
-              uniformeCF2026Price: parsedValor,
-              uniformeCF2026BretellePrice: parsedBretelleValor,
-              uniformeCF2026ManguitoPrice: parsedManguitoValor,
-              uniformeCF2026CasualPrice: parsedCasualValor,
-              uniformeCF2026BermudaPrice: parsedBermudaValor,
-              uniformeChoiceManguitoSize: manguitoTamanho,
-              uniformeChoiceCasualSize: casualTamanho,
-              uniformeChoiceBermudaSize: bermudaTamanho,
-              uniformeChoiceBermudaQuantity:
-                Number.isFinite(Number(bermudaQuantidade)) && Number(bermudaQuantidade) > 0
-                  ? Number(bermudaQuantidade)
-                  : 0,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          ),
-        ),
+      await setDocumentNonBlocking(
+        uniformeConfigDocRef,
+        {
+          enabled: true,
+          salesBlocked: uniformeConfig?.salesBlocked === true,
+          title,
+          description,
+          observacoes: uniformeObservacoes.trim(),
+          jerseySizeGuideUrl: jerseySizeGuideUrl.trim(),
+          jerseyShortDescription: jerseyShortDescription.trim(),
+          bretelleShortDescription: bretelleShortDescription.trim(),
+          manguitoShortDescription: manguitoShortDescription.trim(),
+          casualShortDescription: casualShortDescription.trim(),
+          bermudaShortDescription: bermudaShortDescription.trim(),
+          jerseyEnabled,
+          bretelleEnabled,
+          manguitoEnabled,
+          casualEnabled,
+          bermudaEnabled,
+          jerseyPrice: parsedValor,
+          bretellePrice: parsedBretelleValor,
+          manguitoPrice: parsedManguitoValor,
+          casualPrice: parsedCasualValor,
+          bermudaPrice: parsedBermudaValor,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
       );
 
       toast({
@@ -733,7 +736,7 @@ export default function UniformePage() {
     }
   };
 
-  if (isUserLoading || isProfileLoading || !user) {
+  if (isUserLoading || isProfileLoading || isConfigLoading || !user) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -741,7 +744,7 @@ export default function UniformePage() {
     );
   }
 
-  if (!isAdmin && !userProfile?.uniformeCF2026Enabled) {
+  if (!isAdmin && !isUniformeEnabled) {
     return null;
   }
 
@@ -1277,16 +1280,13 @@ export default function UniformePage() {
               ) : (
                 <>
                   {isUniformeSalesBlockedForUser && (
-                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-600">
                       Novos pedidos bloqueados. Aguarde o próximo lote.
                     </div>
                   )}
 
-                  <div
-                    className={`space-y-3 rounded-md border p-3 ${
-                      isJerseyVisibleForUser ? "" : "hidden"
-                    }`}
-                  >
+                  {isJerseyVisibleForUser && (
+                  <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/jersey.jpeg"
@@ -1371,12 +1371,10 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  <div
-                    className={`space-y-3 rounded-md border p-3 ${
-                      isBretelleVisibleForUser ? "" : "hidden"
-                    }`}
-                  >
+                  {isBretelleVisibleForUser && (
+                  <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/Bretelle.jpeg"
@@ -1447,12 +1445,10 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  <div
-                    className={`space-y-3 rounded-md border p-3 ${
-                      isManguitoVisibleForUser ? "" : "hidden"
-                    }`}
-                  >
+                  {isManguitoVisibleForUser && (
+                  <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/Manguito.jpeg"
@@ -1523,12 +1519,10 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  <div
-                    className={`space-y-3 rounded-md border p-3 ${
-                      isCasualVisibleForUser ? "" : "hidden"
-                    }`}
-                  >
+                  {isCasualVisibleForUser && (
+                  <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/Casual.jpeg"
@@ -1599,12 +1593,10 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  <div
-                    className={`space-y-3 rounded-md border p-3 ${
-                      isBermudaVisibleForUser ? "" : "hidden"
-                    }`}
-                  >
+                  {isBermudaVisibleForUser && (
+                  <div className="space-y-3 rounded-md border p-3">
                     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                       <a
                         href="/Bermuda.jpeg"
@@ -1675,6 +1667,7 @@ export default function UniformePage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <div className="space-y-3 rounded-md border p-3">
                     <p className="text-sm font-medium">Resumo do Pedido</p>

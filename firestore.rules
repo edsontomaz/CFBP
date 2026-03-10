@@ -124,5 +124,15 @@ service cloud.firestore {
                        resource.data.uploaderUid == request.auth.uid;
       allow update: if false;
     }
+
+    // ------------------------------------------------------------------------
+    // Global Config Collection
+    // ------------------------------------------------------------------------
+    match /config/{configId} {
+      // Uniforme config can be read by any authenticated user
+      allow get: if isSignedIn() && configId == 'uniforme';
+      // Only admins can list or change global config documents
+      allow list, create, update, delete: if isAdmin();
+    }
   }
 }

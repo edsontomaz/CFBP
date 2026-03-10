@@ -35,10 +35,6 @@ interface UserProfile {
   role?: string;
   grupo?: string[];
   galleryCardEnabled?: boolean;
-  uniformeCF2026Enabled?: boolean;
-  uniformeCF2026SalesBlocked?: boolean;
-  uniformeCF2026Title?: string;
-  uniformeCF2026Description?: string;
   billingEnabled?: boolean;
   eventTotalAmount?: number;
   amountPaid?: number;
@@ -68,6 +64,17 @@ interface GroupData {
 
 interface BasicUser {
   id: string;
+}
+
+interface UniformeConfig {
+  enabled?: boolean;
+  salesBlocked?: boolean;
+  title?: string;
+  description?: string;
+  jerseyPrice?: number;
+  bretellePrice?: number;
+  manguitoPrice?: number;
+  casualPrice?: number;
 }
 
 const dueMonthLabels = [
@@ -103,17 +110,17 @@ const toPositiveNumber = (value: unknown) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
-const computeUniformTotalFromChoice = (profile?: UserProfile) => {
+const computeUniformTotalFromChoice = (profile?: UserProfile, config?: UniformeConfig | null) => {
   if (!profile) return 0;
 
   const jerseyQty = toPositiveNumber(profile.uniformeChoiceQuantity);
   const bretelleQty = toPositiveNumber(profile.uniformeChoiceBretelleQuantity);
   const manguitoQty = toPositiveNumber(profile.uniformeChoiceManguitoQuantity);
   const casualQty = toPositiveNumber(profile.uniformeChoiceCasualQuantity);
-  const jerseyPrice = Number(profile.uniformeCF2026Price || 0);
-  const bretellePrice = Number(profile.uniformeCF2026BretellePrice || 0);
-  const manguitoPrice = Number(profile.uniformeCF2026ManguitoPrice || 0);
-  const casualPrice = Number(profile.uniformeCF2026CasualPrice || 0);
+  const jerseyPrice = Number(config?.jerseyPrice || 0);
+  const bretellePrice = Number(config?.bretellePrice || 0);
+  const manguitoPrice = Number(config?.manguitoPrice || 0);
+  const casualPrice = Number(config?.casualPrice || 0);
 
   return (
     jerseyQty * jerseyPrice +
@@ -196,6 +203,12 @@ export default function HomePage() {
     [firestore, user],
   );
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+  const uniformeConfigDocRef = useMemoFirebase(
+    () => doc(firestore, 'config', 'uniforme'),
+    [firestore],
+  );
+  const { data: uniformeConfig, isLoading: isUniformeConfigLoading } =
+    useDoc<UniformeConfig>(uniformeConfigDocRef);
 
   const isAdmin = userProfile?.role === 'admin';
   const isBillingEnabled = Boolean(userProfile?.billingEnabled);
@@ -209,8 +222,8 @@ export default function HomePage() {
     [firestore, isAdmin],
   );
   const { data: users } = useCollection<BasicUser>(usersQuery);
-  const isUniformeCardEnabled = Boolean(userProfile?.uniformeCF2026Enabled);
-  const isUniformeSalesBlocked = Boolean(userProfile?.uniformeCF2026SalesBlocked);
+  const isUniformeCardEnabled = uniformeConfig?.enabled !== false;
+  const isUniformeSalesBlocked = Boolean(uniformeConfig?.salesBlocked);
   const isGalleryCardEnabled = userProfile?.galleryCardEnabled !== false;
   const userGroups = Array.isArray(userProfile?.grupo) ? userProfile.grupo : [];
   const userHasGroup = userGroups.some((groupName) => String(groupName).trim().length > 0);
@@ -219,9 +232,9 @@ export default function HomePage() {
     useState(false);
   const [isUpdatingGalleryFlag, setIsUpdatingGalleryFlag] = useState(false);
   const uniformeCardTitle =
-    String(userProfile?.uniformeCF2026Title || '').trim() || 'Uniforme CF 2026';
+    String(uniformeConfig?.title || '').trim() || 'Uniforme CF 2026';
   const uniformeCardDescription =
-    String(userProfile?.uniformeCF2026Description || '').trim() ||
+    String(uniformeConfig?.description || '').trim() ||
     'Escolha seu uniforme oficial de 2026.';
   const totalAmount = Number(userProfile?.eventTotalAmount || 0);
   const amountPaid = Number(userProfile?.amountPaid || 0);
@@ -236,7 +249,10 @@ export default function HomePage() {
     totalAmount > 0
       ? Math.min((Math.max(amountPaid, 0) / totalAmount) * 100, 100)
       : 0;
-  const uniformeComputedTotal = computeUniformTotalFromChoice(userProfile ?? undefined);
+  const uniformeComputedTotal = computeUniformTotalFromChoice(
+    userProfile ?? undefined,
+    uniformeConfig,
+  );
   const uniformeSavedTotal = Number(userProfile?.uniformeChoiceTotalAmount || 0);
   const uniformeTotalAmount = uniformeSavedTotal > 0 ? uniformeSavedTotal : uniformeComputedTotal;
   const normalizedUniformPayments = normalizeUniformPayments(
@@ -266,23 +282,20 @@ export default function HomePage() {
   );
 
   const handleUniformeVisibilityToggle = async (checked: boolean) => {
-    if (!isAdmin || !users || users.length === 0) {
+    if (!isAdmin || !uniformeConfigDocRef) {
       return;
     }
 
     setIsUpdatingUniformeFlag(true);
 
     try {
-      await Promise.all(
-        users.map((item) =>
-          setDocumentNonBlocking(
-            doc(firestore, 'users', item.id),
-            {
-              uniformeCF2026Enabled: checked,
-            },
-            { merge: true },
-          ),
-        ),
+      await setDocumentNonBlocking(
+        uniformeConfigDocRef,
+        {
+          enabled: checked,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
       );
     } finally {
       setIsUpdatingUniformeFlag(false);
@@ -314,23 +327,20 @@ export default function HomePage() {
   };
 
   const handleUniformeSalesBlockToggle = async (checked: boolean) => {
-    if (!isAdmin || !users || users.length === 0) {
+    if (!isAdmin || !uniformeConfigDocRef) {
       return;
     }
 
     setIsUpdatingUniformeSalesBlockFlag(true);
 
     try {
-      await Promise.all(
-        users.map((item) =>
-          setDocumentNonBlocking(
-            doc(firestore, 'users', item.id),
-            {
-              uniformeCF2026SalesBlocked: checked,
-            },
-            { merge: true },
-          ),
-        ),
+      await setDocumentNonBlocking(
+        uniformeConfigDocRef,
+        {
+          salesBlocked: checked,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
       );
     } finally {
       setIsUpdatingUniformeSalesBlockFlag(false);
@@ -457,7 +467,7 @@ export default function HomePage() {
     void showPaymentUpdateAlert();
   }, [toast, userDocRef, userProfile?.paymentNotificationPending, userProfile?.paymentNotificationMessage]);
 
-  if (isUserLoading || isProfileLoading || !user) {
+  if (isUserLoading || isProfileLoading || isUniformeConfigLoading || !user) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -687,56 +697,60 @@ export default function HomePage() {
                       </Table>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
 
-                  {shouldShowUniformeFinanceSummary && (
-                    <div className="space-y-3 pt-3 border-t">
-                      <CardTitle>Pagamento do Uniforme</CardTitle>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Progresso do Pagamento</span>
-                          <span className="text-sm font-medium">
-                            {uniformeProgressPercentage.toFixed(0)}%
-                          </span>
-                        </div>
-                        <Progress value={uniformeProgressPercentage} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Total do Uniforme</span>
-                        <span className="font-medium">{formatCurrency(uniformeTotalAmount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Já Pago (Uniforme)</span>
-                        <span className="font-medium">{formatCurrency(uniformePaidAmount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Saldo Devedor (Uniforme)</span>
-                        <span className="font-medium">{formatCurrency(uniformeDebtAmount)}</span>
-                      </div>
+            {shouldShowUniformeFinanceSummary && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pagamento do Uniforme</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Progresso do Pagamento</span>
+                      <span className="text-sm font-medium">
+                        {uniformeProgressPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <Progress value={uniformeProgressPercentage} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total do Uniforme</span>
+                    <span className="font-medium">{formatCurrency(uniformeTotalAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Já Pago (Uniforme)</span>
+                    <span className="font-medium">{formatCurrency(uniformePaidAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Saldo Devedor (Uniforme)</span>
+                    <span className="font-medium">{formatCurrency(uniformeDebtAmount)}</span>
+                  </div>
 
-                      {uniformeInstallmentRows.length > 0 && (
-                        <div className="pt-2">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Parcela</TableHead>
-                                <TableHead>Valor</TableHead>
-                                <TableHead>Data Pag.</TableHead>
-                                <TableHead>Status</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {uniformeInstallmentRows.map((installment) => (
-                                <TableRow key={`uniforme-installment-${installment.number}`}>
-                                  <TableCell>{installment.number}</TableCell>
-                                  <TableCell>{formatCurrency(installment.value)}</TableCell>
-                                  <TableCell>{installment.dueDate}</TableCell>
-                                  <TableCell>{installment.status}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
+                  {uniformeInstallmentRows.length > 0 && (
+                    <div className="pt-2">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Parcela</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Data Pag.</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {uniformeInstallmentRows.map((installment) => (
+                            <TableRow key={`uniforme-installment-${installment.number}`}>
+                              <TableCell>{installment.number}</TableCell>
+                              <TableCell>{formatCurrency(installment.value)}</TableCell>
+                              <TableCell>{installment.dueDate}</TableCell>
+                              <TableCell>{installment.status}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </CardContent>
