@@ -37,6 +37,7 @@ import { ArrowLeft, Loader2, Shirt } from "lucide-react";
 interface UniformeChoiceUser {
   id: string;
   displayName: string;
+  apelido?: string;
   role?: string;
   uniformeChoiceSize?: string;
   uniformeChoiceBretelleSize?: string;
@@ -73,6 +74,13 @@ const formatCurrency = (value: number) =>
 const getFirstName = (fullName?: string) => {
   if (!fullName) return "Sem nome";
   return fullName.trim().split(" ")[0] || "Sem nome";
+};
+
+const getDisplayNameForAdmin = (userProfile: UniformeChoiceUser) => {
+  const nickname = String(userProfile.apelido || "").trim();
+  const firstName = getFirstName(userProfile.displayName);
+  if (nickname) return `${firstName} (${nickname})`;
+  return firstName;
 };
 
 const toPositiveNumber = (value: unknown) => {
@@ -283,7 +291,7 @@ export default function AdminPayUniformePage() {
             : "Pendente";
 
       return {
-        Usuario: getFirstName(item.displayName),
+        Usuario: getDisplayNameForAdmin(item),
         "Jersey Tamanho": String(item.uniformeChoiceSize || "").trim() || "-",
         "Jersey Quantidade": toPositiveNumber(item.uniformeChoiceQuantity),
         "Bretelle Tamanho":
@@ -508,7 +516,7 @@ export default function AdminPayUniformePage() {
                   return [
                     <TableRow key={`${item.id}-summary`}>
                         <TableCell className="font-medium">
-                          {getFirstName(item.displayName)}
+                          {getDisplayNameForAdmin(item)}
                         </TableCell>
                         <TableCell>
                           {formatChoice(item.uniformeChoiceSize, item.uniformeChoiceQuantity)}

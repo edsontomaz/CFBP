@@ -63,6 +63,9 @@ interface UserExportRow {
   motivacaoViagem?: string[] | string;
 }
 
+const isNoMediaGroup = (groupName: string) =>
+  groupName.trim().toUpperCase() === 'NO MEDIA';
+
 export default function ExportPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -80,6 +83,11 @@ export default function ExportPage() {
     [firestore, userProfile?.role],
   );
   const { data: availableGroups } = useCollection<GroupData>(groupsQuery);
+
+  const visibleGroups = useMemo(
+    () => (availableGroups || []).filter((group) => !isNoMediaGroup(group.name)),
+    [availableGroups],
+  );
 
   const usersQuery = useMemoFirebase(
     () => (userProfile?.role === 'admin' ? collection(firestore, 'users') : null),
@@ -102,20 +110,22 @@ export default function ExportPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    if (!availableGroups || availableGroups.length === 0) {
+    if (!visibleGroups || visibleGroups.length === 0) {
       setExportGroup('');
       return;
     }
 
-    if (!exportGroup || !availableGroups.some((group) => group.name === exportGroup)) {
-      setExportGroup(availableGroups[0].name);
+    if (!exportGroup || !visibleGroups.some((group) => group.name === exportGroup)) {
+      setExportGroup(visibleGroups[0].name);
     }
-  }, [availableGroups, exportGroup, isAdmin]);
+  }, [visibleGroups, exportGroup, isAdmin]);
 
   const normalizeGroups = (value?: string[] | string) => {
     if (!value) return [] as string[];
-    if (Array.isArray(value)) return value;
-    return [value];
+    if (Array.isArray(value)) {
+      return value.filter((group) => !isNoMediaGroup(String(group)));
+    }
+    return isNoMediaGroup(value) ? [] : [value];
   };
 
   const formatGroupList = (value?: string[] | string) =>
@@ -202,7 +212,7 @@ export default function ExportPage() {
                       <SelectValue placeholder="Selecione um grupo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(availableGroups || []).map((group) => (
+                      {visibleGroups.map((group) => (
                         <SelectItem key={group.id} value={group.name}>
                           {group.name}
                         </SelectItem>

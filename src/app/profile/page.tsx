@@ -113,6 +113,9 @@ const motivacoes = [
   { id: "Esporte", label: "Esporte" },
 ];
 
+const isNoMediaGroup = (groupName: string) =>
+  groupName.trim().toUpperCase() === "NO MEDIA";
+
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -918,12 +921,18 @@ export default function ProfilePage() {
             <div className="md:col-span-2 space-y-2">
               <Label>Meus Grupos</Label>
               <div className="flex flex-wrap gap-2 rounded-md border p-4 min-h-[40px]">
-                {(form.getValues("grupo") || []).length > 0 ? (
-                  form.getValues("grupo")?.map((group) => (
+                {(form
+                  .getValues("grupo")
+                  ?.filter((group) => !isNoMediaGroup(group)) || []).length >
+                0 ? (
+                  form
+                    .getValues("grupo")
+                    ?.filter((group) => !isNoMediaGroup(group))
+                    .map((group) => (
                     <Badge key={group} variant="secondary">
                       {group}
                     </Badge>
-                  ))
+                    ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Você ainda não pertence a nenhum grupo.
