@@ -30,8 +30,16 @@ import {
   useUser,
   setDocumentNonBlocking,
 } from "@/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, serverTimestamp } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
+  sendPasswordResetEmail,
+  updateProfile,
+} from "firebase/auth";
+import {
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { LogoAuth } from "@/components/logo-auth";
 
@@ -43,11 +51,18 @@ const formSchema = z.object({
   password: z
     .string()
     .min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
+  confirmPassword: z
+    .string()
+    .min(1, { message: "A confirmação de senha é obrigatória." }),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas não conferem.",
+  path: ["confirmPassword"],
 });
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -66,15 +81,129 @@ export default function RegisterPage() {
       displayName: "",
       email: "",
       password: "",
+      confirmPassword: "",
     },
   });
+
+  function clearPasswordFields() {
+    form.setValue("password", "");
+    form.setValue("confirmPassword", "");
+    form.clearErrors(["password", "confirmPassword"]);
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
+      const normalizedEmail = values.email.trim().toLowerCase();
+      const checkProfileResponse = await fetch("/api/auth/recover-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: normalizedEmail, mode: "check" }),
+      });
+
+      const checkProfileBody = await checkProfileResponse
+        .json()
+        .catch(() => null);
+      const hasExistingProfile = Boolean(checkProfileBody?.profileExists);
+
+      if (hasExistingProfile) {
+        clearPasswordFields();
+        form.setError("email", {
+          type: "manual",
+          message: "Já existe um perfil com este e-mail.",
+        });
+
+        const wantsRecoverAccess = window.confirm(
+          "Já existe um perfil com este e-mail. Deseja recuperar o acesso? Enviaremos um e-mail para redefinir sua senha e usar o perfil existente.",
+        );
+
+        if (wantsRecoverAccess) {
+          try {
+            const signInMethods = await fetchSignInMethodsForEmail(
+              auth,
+              normalizedEmail,
+            );
+
+            if (signInMethods.length === 0) {
+              const recoverResponse = await fetch("/api/auth/recover-profile", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email: normalizedEmail }),
+              });
+
+              if (!recoverResponse.ok) {
+                const recoverBody = await recoverResponse
+                  .json()
+                  .catch(() => null);
+                throw new Error(
+                  recoverBody?.error ||
+                    "Não foi possível preparar a recuperação deste perfil.",
+                );
+              }
+            }
+
+            await sendPasswordResetEmail(auth, normalizedEmail);
+
+            toast({
+              title: "Recuperação enviada",
+              description:
+                "Enviamos um e-mail para você redefinir a senha e acessar seu perfil existente.",
+            });
+            router.push("/login");
+            return;
+          } catch (recoverError: any) {
+            toast({
+              variant: "destructive",
+              title: "Erro no Cadastro",
+              description:
+                recoverError?.message ||
+                "Não foi possível iniciar a recuperação de acesso.",
+            });
+            router.push("/login");
+            return;
+          }
+        }
+
+        toast({
+          variant: "destructive",
+          title: "Erro no Cadastro",
+          description:
+            "Este e-mail já possui perfil. Use a recuperação de acesso para continuar.",
+        });
+        router.push("/login");
+        return;
+      }
+
+      const signInMethods = await fetchSignInMethodsForEmail(
+        auth,
+        normalizedEmail,
+      );
+
+      if (signInMethods.length > 0) {
+        clearPasswordFields();
+        form.setError("email", {
+          type: "manual",
+          message: "Este email já está sendo usado.",
+        });
+
+        toast({
+          variant: "destructive",
+          title: "Erro no Cadastro",
+          description: "Este email já está sendo usado.",
+        });
+
+        router.push("/login");
+
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        values.email,
+        normalizedEmail,
         values.password,
       );
       const newUser = userCredential.user;
@@ -119,6 +248,7 @@ export default function RegisterPage() {
         description: "Bem-vindo! Você será redirecionado em breve.",
       });
     } catch (error: any) {
+      clearPasswordFields();
       let description = "Ocorreu um erro. Tente novamente.";
       if (error.code === "auth/email-already-in-use") {
         description = "Este email já está sendo usado.";
@@ -128,6 +258,8 @@ export default function RegisterPage() {
         title: "Erro no Cadastro",
         description,
       });
+
+      router.push("/login");
     } finally {
       setIsLoading(false);
     }
@@ -215,6 +347,48 @@ export default function RegisterPage() {
                       </div>
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormLabel className="text-yellow-500">Confirmar senha</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="********"
+                          {...field}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground"
+                          aria-label={
+                            showConfirmPassword
+                              ? "Ocultar confirmação de senha"
+                              : "Mostrar confirmação de senha"
+                          }
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage
+                      className={
+                        fieldState.error?.message === "As senhas não conferem."
+                          ? "text-yellow-500"
+                          : undefined
+                      }
+                    />
                   </FormItem>
                 )}
               />

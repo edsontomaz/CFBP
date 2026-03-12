@@ -54,6 +54,7 @@ export default function AdminEditUserPage() {
   const params = useParams();
   const userId = params.userId as string;
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   // State for group management (removed - groups now come from Firestore)
 
@@ -211,6 +212,71 @@ export default function AdminEditUserPage() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleDeactivateAccount = async () => {
+    if (adminUser?.uid === userId) {
+      toast({
+        variant: "destructive",
+        title: "Ação não permitida",
+        description:
+          "Você não pode desativar o seu próprio usuário por esta tela.",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Deseja excluir apenas a conta de login de ${userProfile?.displayName || ""} e manter o perfil salvo? O usuário poderá se cadastrar novamente com o mesmo e-mail.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeactivating(true);
+
+      const currentAuthUser = auth.currentUser;
+      if (!currentAuthUser) {
+        throw new Error("Sessão expirada. Faça login novamente.");
+      }
+
+      const idToken = await currentAuthUser.getIdToken(true);
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const responseBody = await response.json().catch(() => null);
+        toast({
+          variant: "destructive",
+          title: "Erro ao desativar",
+          description:
+            responseBody?.error ||
+            "Não foi possível concluir a desativação da conta.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Conta desativada!",
+        description:
+          "A conta de login foi removida, mas o perfil do usuário foi mantido.",
+      });
+      router.push("/admin");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao desativar",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível desativar a conta.",
+      });
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -391,7 +457,9 @@ export default function AdminEditUserPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 type="submit"
-                disabled={form.formState.isSubmitting || isDeleting}
+                disabled={
+                  form.formState.isSubmitting || isDeleting || isDeactivating
+                }
               >
                 {form.formState.isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -400,10 +468,27 @@ export default function AdminEditUserPage() {
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                onClick={handleDeactivateAccount}
+                disabled={
+                  isDeactivating ||
+                  isDeleting ||
+                  form.formState.isSubmitting ||
+                  adminUser?.uid === userId
+                }
+              >
+                {isDeactivating && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Excluir Conta (manter perfil)
+              </Button>
+              <Button
+                type="button"
                 variant="destructive"
                 onClick={handleDeleteUser}
                 disabled={
                   isDeleting ||
+                  isDeactivating ||
                   form.formState.isSubmitting ||
                   adminUser?.uid === userId
                 }

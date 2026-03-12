@@ -4,6 +4,16 @@ import {
   adminFirestore,
 } from "@/lib/firebase-admin";
 
+async function deleteAuthUserIfExists(userId: string) {
+  try {
+    await adminAuth.deleteUser(userId);
+  } catch (authError: any) {
+    if (authError?.code !== "auth/user-not-found") {
+      throw authError;
+    }
+  }
+}
+
 async function isRequesterAdmin(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -71,13 +81,7 @@ export async function DELETE(
   }
 
   try {
-    try {
-      await adminAuth.deleteUser(userId);
-    } catch (authError: any) {
-      if (authError?.code !== "auth/user-not-found") {
-        throw authError;
-      }
-    }
+    await deleteAuthUserIfExists(userId);
 
     await adminFirestore.collection("users").doc(userId).delete();
 
@@ -102,6 +106,66 @@ export async function DELETE(
       process.env.NODE_ENV === "development"
         ? `Falha ao excluir usuário. ${error?.code || ""} ${error?.message || ""}`.trim()
         : "Falha ao excluir usuário.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ userId: string }> },
+) {
+  const authResult = await isRequesterAdmin(request);
+  if (!authResult.ok) {
+    return NextResponse.json(
+      { error: authResult.message },
+      { status: authResult.status },
+    );
+  }
+
+  const { userId } = await context.params;
+
+  if (authResult.uid === userId) {
+    return NextResponse.json(
+      { error: "Você não pode desativar seu próprio usuário por esta ação." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await deleteAuthUserIfExists(userId);
+
+    await adminFirestore.collection("users").doc(userId).set(
+      {
+        accountStatus: "desativada",
+        authDeleted: true,
+        authDeletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { merge: true },
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    const isCredentialError =
+      error?.code === "app/invalid-credential" ||
+      error?.code === "auth/invalid-credential" ||
+      error?.message?.toLowerCase?.().includes("credential");
+
+    if (isCredentialError) {
+      return NextResponse.json(
+        {
+          error:
+            "Credenciais do Firebase Admin não configuradas no servidor. Configure FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY ou GOOGLE_APPLICATION_CREDENTIALS.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const message =
+      process.env.NODE_ENV === "development"
+        ? `Falha ao desativar conta. ${error?.code || ""} ${error?.message || ""}`.trim()
+        : "Falha ao desativar conta.";
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
