@@ -31,6 +31,13 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, FolderPlus, ArrowLeft, Wallet } from "lucide-react";
 
 interface UserProfile {
@@ -39,12 +46,19 @@ interface UserProfile {
   apelido?: string;
   email: string;
   role: string;
+  grupo?: string[];
   eventTotalAmount?: number;
   billingEnabled?: boolean;
 }
 
+interface GroupData {
+  id: string;
+  name: string;
+}
+
 type EventValueByUser = Record<string, number>;
 type BillingByUser = Record<string, boolean>;
+const NO_GROUP_FILTER = "__no_group__";
 
 export default function AdminDashboardPage() {
   const { user, isUserLoading } = useUser();
@@ -54,6 +68,7 @@ export default function AdminDashboardPage() {
     useState<EventValueByUser>({});
   const [billingByUser, setBillingByUser] = useState<BillingByUser>({});
   const [savingByUser, setSavingByUser] = useState<Record<string, boolean>>({});
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState("all");
 
   const getFirstName = (fullName?: string) => {
     if (!fullName) return "Sem nome";
@@ -84,6 +99,16 @@ export default function AdminDashboardPage() {
 
   const { data: users, isLoading: areUsersLoading } =
     useCollection<UserProfile>(usersQuery);
+
+  const groupsQuery = useMemoFirebase(() => {
+    if (currentUserProfile && currentUserProfile.role === "admin") {
+      return collection(firestore, "groups");
+    }
+    return null;
+  }, [firestore, currentUserProfile]);
+
+  const { data: groups, isLoading: areGroupsLoading } =
+    useCollection<GroupData>(groupsQuery);
 
   useEffect(() => {
     if (!users) return;
@@ -150,7 +175,30 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const isLoading = isUserLoading || isProfileLoading || areUsersLoading;
+  const isLoading =
+    isUserLoading || isProfileLoading || areUsersLoading || areGroupsLoading;
+
+  const availableGroups = Array.from(
+    new Set((groups || []).map((group) => group.name).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  useEffect(() => {
+    if (selectedGroupFilter === "all" || selectedGroupFilter === NO_GROUP_FILTER) {
+      return;
+    }
+
+    if (!availableGroups.includes(selectedGroupFilter)) {
+      setSelectedGroupFilter("all");
+    }
+  }, [availableGroups, selectedGroupFilter]);
+
+  const filteredUsers = (users || []).filter((u) => {
+    if (selectedGroupFilter === "all") return true;
+    if (selectedGroupFilter === NO_GROUP_FILTER) {
+      return !Array.isArray(u.grupo) || u.grupo.length === 0;
+    }
+    return Array.isArray(u.grupo) && u.grupo.includes(selectedGroupFilter);
+  });
 
   if (isLoading || !currentUserProfile || currentUserProfile.role !== "admin") {
     return (
@@ -191,8 +239,8 @@ export default function AdminDashboardPage() {
               Painel do Administrador
             </CardTitle>
             <CardDescription>
-              Gerencie os usuários cadastrados no sistema. ({users?.length || 0}{" "}
-              usuários)
+              Gerencie os usuários cadastrados no sistema. ({filteredUsers.length}
+              {" "}de {users?.length || 0} usuários)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -202,12 +250,33 @@ export default function AdminDashboardPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Valor do Evento</TableHead>
                   <TableHead>Pagamento</TableHead>
+                  <TableHead>
+                    <div className="space-y-1">
+                      <span>Grupo</span>
+                      <Select
+                        value={selectedGroupFilter}
+                        onValueChange={setSelectedGroupFilter}
+                      >
+                        <SelectTrigger className="h-8 w-[180px]">
+                          <SelectValue placeholder="Filtrar grupo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os grupos</SelectItem>
+                          <SelectItem value={NO_GROUP_FILTER}>Sem grupo</SelectItem>
+                          {availableGroups.map((groupName) => (
+                            <SelectItem key={groupName} value={groupName}>
+                              {groupName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users &&
-                  users.map((u) => (
+                {filteredUsers.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">
                         {getDisplayNameForAdmin(u)}
@@ -251,6 +320,11 @@ export default function AdminDashboardPage() {
                           </span>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        {Array.isArray(u.grupo) && u.grupo.length > 0
+                          ? u.grupo.join(", ")
+                          : "Sem grupo"}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button asChild variant="outline" size="sm">
@@ -265,9 +339,9 @@ export default function AdminDashboardPage() {
                   ))}
               </TableBody>
             </Table>
-            {(!users || users.length === 0) && (
+            {filteredUsers.length === 0 && (
               <div className="text-center py-16 text-muted-foreground">
-                Nenhum usuário encontrado.
+                Nenhum usuário encontrado para o filtro selecionado.
               </div>
             )}
           </CardContent>

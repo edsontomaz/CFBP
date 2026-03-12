@@ -45,6 +45,7 @@ interface Group {
   id: string;
   name: string;
   canUpload?: boolean;
+  adminOnly?: boolean;
   createdAt?: any;
 }
 
@@ -59,6 +60,7 @@ export default function AdminGroupsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreatingNoMedia, setIsCreatingNoMedia] = useState(false);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, "users", user.uid) : null),
@@ -148,6 +150,67 @@ export default function AdminGroupsPage() {
   const handleDeleteClick = (group: Group) => {
     setGroupToDelete(group);
     setDeleteDialogOpen(true);
+  };
+
+  const handleCreateNoMediaGroup = async () => {
+    const noMediaName = newGroupName.trim();
+
+    if (!noMediaName) {
+      setGroupError("Digite um nome para o grupo.");
+      return;
+    }
+
+    if (/\s/.test(noMediaName)) {
+      setGroupError(
+        "O nome do grupo não pode conter espaços. Use hífens (-) ou underscores (_).",
+      );
+      return;
+    }
+
+    const groupExists = groups?.some(
+      (g) => g.name.toLowerCase() === noMediaName.toLowerCase(),
+    );
+
+    if (groupExists) {
+      toast({
+        title: "Grupo já existe",
+        description: `O grupo "${noMediaName}" já está cadastrado.`,
+      });
+      return;
+    }
+
+    try {
+      setIsCreatingNoMedia(true);
+      const groupRef = doc(firestore, "groups", noMediaName);
+      await setDocumentNonBlocking(
+        groupRef,
+        {
+          name: noMediaName,
+          canUpload: false,
+          adminOnly: true,
+          createdAt: serverTimestamp(),
+        },
+        {},
+      );
+
+      toast({
+        title: "Grupo criado!",
+        description:
+          `O grupo "${noMediaName}" foi criado para organização no painel do administrador.`,
+      });
+
+      setNewGroupName("");
+      setGroupError("");
+    } catch (error) {
+      console.error("Erro ao criar grupo NO MEDIA:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: `Não foi possível criar o grupo "${noMediaName}".`,
+      });
+    } finally {
+      setIsCreatingNoMedia(false);
+    }
   };
 
   const handleToggleUploadPermission = async (
@@ -277,6 +340,18 @@ export default function AdminGroupsPage() {
                   <FolderPlus className="h-4 w-4 mr-2" />
                   Criar Grupo
                 </Button>
+                <Button
+                  onClick={handleCreateNoMediaGroup}
+                  disabled={isCreatingNoMedia || !newGroupName.trim()}
+                >
+                  {isCreatingNoMedia && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  {!isCreatingNoMedia && (
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                  )}
+                  NO MEDIA
+                </Button>
               </div>
             </div>
 
@@ -302,21 +377,28 @@ export default function AdminGroupsPage() {
                         </div>
                         <div>
                           <span className="font-medium">{group.name}</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Checkbox
-                              id={`can-upload-${group.id}`}
-                              checked={group.canUpload !== false}
-                              onCheckedChange={(checked) =>
-                                handleToggleUploadPermission(group, checked)
-                              }
-                            />
-                            <label
-                              htmlFor={`can-upload-${group.id}`}
-                              className="text-sm text-muted-foreground cursor-pointer"
-                            >
-                              Permitir envio de mídias
-                            </label>
-                          </div>
+                          {group.adminOnly && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Somente organização no painel do administrador.
+                            </p>
+                          )}
+                          {!group.adminOnly && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Checkbox
+                                id={`can-upload-${group.id}`}
+                                checked={group.canUpload !== false}
+                                onCheckedChange={(checked) =>
+                                  handleToggleUploadPermission(group, checked)
+                                }
+                              />
+                              <label
+                                htmlFor={`can-upload-${group.id}`}
+                                className="text-sm text-muted-foreground cursor-pointer"
+                              >
+                                Permitir envio de mídias
+                              </label>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <Button

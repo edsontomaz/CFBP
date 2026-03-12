@@ -69,6 +69,7 @@ interface GroupData {
   id: string;
   name: string;
   canUpload?: boolean;
+  adminOnly?: boolean;
 }
 
 export default function GalleryPage() {
@@ -107,10 +108,11 @@ export default function GalleryPage() {
   const [activeGroup, setActiveGroup] = useState<string | undefined>(undefined);
   const [validUserGroups, setValidUserGroups] = useState<string[]>([]);
 
-  // Filtrar apenas grupos que existem na coleção groups
+  // Filtrar apenas grupos válidos (existentes e visíveis para usuário)
   useEffect(() => {
     if (userProfile?.grupo && availableGroups) {
-      const groupNames = availableGroups.map((g) => g.name);
+      const visibleGroups = availableGroups.filter((g) => g.adminOnly !== true);
+      const groupNames = visibleGroups.map((g) => g.name);
       const valid = userProfile.grupo.filter((g) => groupNames.includes(g));
       setValidUserGroups(valid);
       console.log("Grupos do usuário:", userProfile.grupo);
