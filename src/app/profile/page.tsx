@@ -60,26 +60,26 @@ const profileFormSchema = z
   .object({
     apelido: z.string().optional(),
     displayName: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
-    email: z.string().email(),
+    email: z.string().email("Informe um e-mail válido."),
     sexo: z.string().optional(),
-    endereco: z.string().optional(),
+    endereco: z.string().min(1, "Endereço é obrigatório."),
     cep: z.string().optional(),
-    cidade: z.string().optional(),
+    cidade: z.string().min(1, "Cidade é obrigatória."),
     estado: z.string().optional(),
-    telefone: z.string().optional(),
+    telefone: z.string().min(1, "Telefone é obrigatório."),
     telefoneEmergencia: z.string().optional(),
     nacionalidade: z.string().optional(),
     tipoSanguineo: z.string().optional(),
     alergias: z.string().optional(),
     possuiConvenio: z.string().optional(),
     nomeConvenio: z.string().optional(),
-    cpf: z.string().optional(),
+    cpf: z.string().min(1, "CPF é obrigatório."),
     rg: z.string().optional(),
     dataNascimento: z
       .string()
-      .optional()
+      .min(1, "Data de nascimento é obrigatória.")
       .refine(
-        (value) => !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value),
+        (value) => /^\d{2}\/\d{2}\/\d{4}$/.test(value),
         "Use o formato DD/MM/AAAA.",
       ),
     profissao: z.string().optional(),
@@ -112,6 +112,83 @@ const motivacoes = [
   { id: "Turismo", label: "Turismo" },
   { id: "Esporte", label: "Esporte" },
 ];
+
+const SEXO_OPTIONS = ["Masculino", "Feminino", "Outro"] as const;
+const TIPO_SANGUINEO_OPTIONS = [
+  "NÃO SEI",
+  "A+",
+  "A-",
+  "B+",
+  "B-",
+  "AB+",
+  "AB-",
+  "O+",
+  "O-",
+] as const;
+const POSSUI_CONVENIO_OPTIONS = ["Sim", "Não"] as const;
+
+function normalizeSexo(
+  value: unknown,
+): "Masculino" | "Feminino" | "Outro" | "" {
+  const normalizedValue = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedValue) return "";
+
+  const normalizedWithoutAccents = normalizedValue
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/["'`´.,;:!?()[\]{}]/g, "")
+    .trim();
+
+  if (
+    ["masculino", "masc", "m", "homem"].includes(normalizedWithoutAccents) ||
+    normalizedWithoutAccents.startsWith("masc")
+  ) {
+    return "Masculino";
+  }
+
+  if (
+    ["feminino", "fem", "f", "mulher"].includes(normalizedWithoutAccents) ||
+    normalizedWithoutAccents.startsWith("fem")
+  ) {
+    return "Feminino";
+  }
+
+  if (["outro", "outros", "o"].includes(normalizedWithoutAccents)) {
+    return "Outro";
+  }
+
+  return "";
+}
+
+function normalizePossuiConvenio(value: unknown): "Sim" | "Não" | "" {
+  if (value === true) return "Sim";
+  if (value === false) return "Não";
+
+  const normalizedValue = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedValue) return "";
+  if (["sim", "s"].includes(normalizedValue)) return "Sim";
+  if (["nao", "não", "n", "nao.", "não."].includes(normalizedValue)) {
+    return "Não";
+  }
+  return "";
+}
+
+function normalizeTipoSanguineo(value: unknown): string {
+  const normalizedValue = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (!normalizedValue) return "";
+  if (normalizedValue === "NAO SEI") return "NÃO SEI";
+  return TIPO_SANGUINEO_OPTIONS.includes(
+    normalizedValue as (typeof TIPO_SANGUINEO_OPTIONS)[number],
+  )
+    ? normalizedValue
+    : "";
+}
 
 const isNoMediaGroup = (groupName: string) =>
   groupName.trim().toUpperCase() === "NO MEDIA";
@@ -264,12 +341,12 @@ export default function ProfilePage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && !isProfileLoading) {
       const formData = {
         apelido: userProfile.apelido || "",
         displayName: userProfile.displayName || "",
         email: userProfile.email || "",
-        sexo: userProfile.sexo || "",
+        sexo: normalizeSexo(userProfile.sexo),
         endereco: userProfile.endereco || "",
         cep: formatCepOnType(userProfile.cep || ""),
         cidade: userProfile.cidade || "",
@@ -277,9 +354,9 @@ export default function ProfilePage() {
         telefone: formatPhoneOnType(userProfile.telefone || ""),
         telefoneEmergencia: formatPhoneOnType(userProfile.telefoneEmergencia || ""),
         nacionalidade: userProfile.nacionalidade || "",
-        tipoSanguineo: userProfile.tipoSanguineo || "",
+        tipoSanguineo: normalizeTipoSanguineo(userProfile.tipoSanguineo),
         alergias: userProfile.alergias || "",
-        possuiConvenio: userProfile.possuiConvenio || "",
+        possuiConvenio: normalizePossuiConvenio(userProfile.possuiConvenio),
         nomeConvenio: userProfile.nomeConvenio || "",
         cpf: formatCpfOnType(userProfile.cpf || ""),
         rg: formatRgOnType(userProfile.rg || ""),
@@ -292,7 +369,7 @@ export default function ProfilePage() {
       };
       form.reset(formData);
     }
-  }, [userProfile, form]);
+  }, [userProfile, isProfileLoading, form]);
 
   const handleReauthenticateAndUpdateEmail = async () => {
     if (!user || !user.email || !reauthPassword) {
@@ -320,17 +397,28 @@ export default function ProfilePage() {
 
       // Agora salva o perfil com os dados pendentes
       if (pendingFormValues && userDocRef) {
+        const normalizedSexo = normalizeSexo(pendingFormValues.sexo);
+        const fallbackSexo = String(pendingFormValues.sexo || "").trim();
         const normalizedPendingValues = {
           ...pendingFormValues,
+          sexo: normalizedSexo || fallbackSexo,
+          tipoSanguineo: normalizeTipoSanguineo(
+            pendingFormValues.tipoSanguineo,
+          ),
+          possuiConvenio: normalizePossuiConvenio(
+            pendingFormValues.possuiConvenio,
+          ),
           nomeConvenio:
-            pendingFormValues.possuiConvenio === "Sim"
+            normalizePossuiConvenio(pendingFormValues.possuiConvenio) === "Sim"
               ? pendingFormValues.nomeConvenio || ""
               : "",
         };
 
         const dataToSave = {
           ...normalizedPendingValues,
-          dataNascimento: normalizeBirthDateForSave(pendingFormValues.dataNascimento),
+          dataNascimento: normalizeBirthDateForSave(
+            pendingFormValues.dataNascimento,
+          ),
           updatedAt: serverTimestamp(),
         };
         await setDocumentNonBlocking(userDocRef, dataToSave, { merge: true });
@@ -363,10 +451,19 @@ export default function ProfilePage() {
   const onSubmit = async (values: ProfileFormValues) => {
     if (!userDocRef || !user) return;
 
+    const normalizedSexo = normalizeSexo(values.sexo);
+    const fallbackSexo = String(values.sexo || "").trim();
+    const normalizedPossuiConvenio = normalizePossuiConvenio(
+      values.possuiConvenio,
+    );
+
     const normalizedValues = {
       ...values,
+      sexo: normalizedSexo || fallbackSexo,
+      tipoSanguineo: normalizeTipoSanguineo(values.tipoSanguineo),
+      possuiConvenio: normalizedPossuiConvenio,
       nomeConvenio:
-        values.possuiConvenio === "Sim" ? values.nomeConvenio || "" : "",
+        normalizedPossuiConvenio === "Sim" ? values.nomeConvenio || "" : "",
     };
 
     // Se o email foi alterado, requer re-autenticação
@@ -380,7 +477,9 @@ export default function ProfilePage() {
     // Sem mudança de email, salva normalmente
     const dataToSave = {
       ...normalizedValues,
-      dataNascimento: normalizeBirthDateForSave(normalizedValues.dataNascimento),
+      dataNascimento: normalizeBirthDateForSave(
+        normalizedValues.dataNascimento,
+      ),
       updatedAt: serverTimestamp(),
     };
 
@@ -460,7 +559,11 @@ export default function ProfilePage() {
                 <FormItem className="md:col-span-2">
                   <FormLabel>Apelido</FormLabel>
                   <FormControl>
-                    <Input placeholder="Seu apelido" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Seu apelido"
+                      {...field}
+                      value={field.value || ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -510,7 +613,9 @@ export default function ProfilePage() {
                       {...field}
                       value={field.value || ""}
                       onChange={(event) =>
-                        field.onChange(formatBirthDateOnType(event.target.value))
+                        field.onChange(
+                          formatBirthDateOnType(event.target.value),
+                        )
                       }
                     />
                   </FormControl>
@@ -526,7 +631,9 @@ export default function ProfilePage() {
                 <FormItem>
                   <FormLabel>Sexo</FormLabel>
                   <Select
+                    key={field.value}
                     onValueChange={field.onChange}
+                    defaultValue={field.value}
                     value={field.value || ""}
                   >
                     <FormControl>
@@ -746,7 +853,9 @@ export default function ProfilePage() {
                 <FormItem>
                   <FormLabel>Tipo sanguíneo</FormLabel>
                   <Select
+                    key={field.value}
                     onValueChange={field.onChange}
+                    defaultValue={field.value}
                     value={field.value || ""}
                   >
                     <FormControl>
@@ -755,15 +864,11 @@ export default function ProfilePage() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="NÃO SEI">NÃO SEI</SelectItem>
-                      <SelectItem value="A+">A+</SelectItem>
-                      <SelectItem value="A-">A-</SelectItem>
-                      <SelectItem value="B+">B+</SelectItem>
-                      <SelectItem value="B-">B-</SelectItem>
-                      <SelectItem value="AB+">AB+</SelectItem>
-                      <SelectItem value="AB-">AB-</SelectItem>
-                      <SelectItem value="O+">O+</SelectItem>
-                      <SelectItem value="O-">O-</SelectItem>
+                      {TIPO_SANGUINEO_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -797,14 +902,14 @@ export default function ProfilePage() {
                 <FormItem>
                   <FormLabel>Possui convênio?</FormLabel>
                   <Select
+                    key={field.value}
                     onValueChange={(value) => {
                       field.onChange(value);
                       if (value !== "Sim") {
-                        form.setValue("nomeConvenio", "", {
-                          shouldValidate: true,
-                        });
+                        form.setValue("nomeConvenio", "");
                       }
                     }}
+                    defaultValue={field.value}
                     value={field.value || ""}
                   >
                     <FormControl>
@@ -921,17 +1026,18 @@ export default function ProfilePage() {
             <div className="md:col-span-2 space-y-2">
               <Label>Meus Grupos</Label>
               <div className="flex flex-wrap gap-2 rounded-md border p-4 min-h-[40px]">
-                {(form
-                  .getValues("grupo")
-                  ?.filter((group) => !isNoMediaGroup(group)) || []).length >
-                0 ? (
+                {(
+                  form
+                    .getValues("grupo")
+                    ?.filter((group) => !isNoMediaGroup(group)) || []
+                ).length > 0 ? (
                   form
                     .getValues("grupo")
                     ?.filter((group) => !isNoMediaGroup(group))
                     .map((group) => (
-                    <Badge key={group} variant="secondary">
-                      {group}
-                    </Badge>
+                      <Badge key={group} variant="secondary">
+                        {group}
+                      </Badge>
                     ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
